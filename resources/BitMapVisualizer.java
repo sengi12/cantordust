@@ -208,10 +208,14 @@ public class BitMapVisualizer extends Visualizer {
 
         Rectangle window = getVisibleRect();
 
-        for(i = 0; i < data.length - offset; i++){
-            data_offset[i] = data[i + offset];
+        // offset comes from a slider capped at 255, so it can exceed the length of
+        // a small file. Clamping keeps the shift loops from running with a negative
+        // bound and indexing out of the array.
+        int shift = Math.min(offset, data.length);
+        for(i = 0; i < data.length - shift; i++){
+            data_offset[i] = data[i + shift];
         }
-        for(i = data.length-offset; i < data.length; i++){
+        for(i = data.length - shift; i < data.length; i++){
             data_offset[i] = 0;
         }
 
@@ -259,9 +263,12 @@ public class BitMapVisualizer extends Visualizer {
                 g = bimg.createGraphics();
                 for (i = low; i < high-2; i+=2){
                     int alpha = (data_offset[i+1] & 0x80) >> 7;
-                    float red = ((data_offset[i+1] & 0x7C) >> 2)/(0x1F);
-                    float green = (((data_offset[i+1] & 0x03) << 3) + ((data[i] & 0xE0) >> 5))/(0x1F);
-                    float blue  = (data_offset[i] & 0x1F)/(0x1F); 
+                    // These were integer divisions by 0x1F, so every channel collapsed
+                    // to 0 unless the 5-bit field was exactly 31. Divide as float, and
+                    // read the green low bits from data_offset like the other channels.
+                    float red = ((data_offset[i+1] & 0x7C) >> 2)/(float)(0x1F);
+                    float green = (((data_offset[i+1] & 0x03) << 3) + ((data_offset[i] & 0xE0) >> 5))/(float)(0x1F);
+                    float blue  = (data_offset[i] & 0x1F)/(float)(0x1F); 
                     g.setColor(new Color(red,green,blue,alpha));
                     g.fill(new Rectangle2D.Double(x, y, 1, 1));
                     x++;

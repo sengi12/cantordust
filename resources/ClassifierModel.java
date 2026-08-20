@@ -26,10 +26,13 @@ public class ClassifierModel {
     public void initialize(){
         for(int i=0; i < classes.length; i++) {
             byte[] data = null;
+            String templatePath = basePath + classes[i] + ".template";
             try {
-                data = Files.readAllBytes((new File(basePath + classes[i] + ".template")).toPath());
+                data = Files.readAllBytes((new File(templatePath)).toPath());
             } catch(IOException e) {
-                e.printStackTrace();
+                // Without this, an unreadable template left data null and the next
+                // line failed with an unrelated NPE, hiding the real cause.
+                throw new IllegalStateException("Could not read classifier template: " + templatePath, e);
             }
             cantordust.cdprint(String.format("generated "+classes[i]+" ngram\n"));
             cantordust.cdprint("My stuff {\ndata: "+data.length+"\n");

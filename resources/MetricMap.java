@@ -155,11 +155,18 @@ public class MetricMap extends Visualizer{
                     TwoIntegerTuple p = new TwoIntegerTuple(x_point, y_point);
                     int currentLow = dataMicroSlider.getValue();
                     int loc = map.index(p);
-                    int memoryLocation = memLoc.get(loc)+currentLow;
+                    // The map is rebuilt on a background thread, so a click can land
+                    // on a cell that has no memory location yet, or outside the region
+                    // the curve actually covers. Ignore it instead of throwing.
+                    Integer mappedLoc = memLoc.get(loc);
+                    if(mappedLoc == null){
+                        return;
+                    }
+                    int memoryLocation = mappedLoc+currentLow;
                     if(dataRangeSlider != null){
                         memoryLocation = memoryLocation + cantordust.getMainInterface().dataSlider.getValue();
                     }
-                    long minGhidraAddress = Long.parseLong(cantordust.getCurrentProgram().getMinAddress().toString(false), 16);
+                    long minGhidraAddress = cantordust.getMinAddressOffset();
                     String currentAddress = Long.toHexString(minGhidraAddress+(long)memoryLocation).toUpperCase();
                     JLabel l;
                     if(isClassifier) {

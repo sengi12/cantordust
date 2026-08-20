@@ -18,8 +18,10 @@ public class Hilbert extends Scurve{
         this.dimension = dimension;
         this.utils = new Utils(this.cantordust);
         double size = Math.pow(2, dimension*order);
-        float x = (float)Math.log(size)/(float)Math.log(2);
-        if(!((float)(x)/dimension == (int)(x)/dimension)){
+        // Computed in float, log2(2^26) came out as 25.9999981 and the check threw
+        // for a size that does fit. Round to the nearest power of two first.
+        int x = (int)Math.round(Math.log(size)/Math.log(2));
+        if(x % dimension != 0){
             throw new Error("Size does not fit Hilbert curve of dimension.");
         } else {
             this.order = order;
@@ -32,21 +34,25 @@ public class Hilbert extends Scurve{
         this.dimension = dimension;
         this.utils = new Utils(cantordust);
         this.cantordust.cdprint("checking size.\n");
-        float x = (float)Math.log(size)/(float)Math.log(2);
-        if(!((float)(x)/dimension == (int)(x)/dimension)){
+        // Computed in float, log2(2^26) came out as 25.9999981 and the check threw
+        // for a size that does fit. Round to the nearest power of two first.
+        int x = (int)Math.round(Math.log(size)/Math.log(2));
+        if(x % dimension != 0){
             throw new Error("Size does not fit Hilbert curve of dimension.");
         } else {
-            this.order = (int)(x/this.dimension);
+            this.order = x/this.dimension;
         }
     }
     @Override
     public Hilbert fromSize(String curve, int dimension, int size){
         this.cantordust.cdprint("checking size.\n");
-        float x = (float)Math.log(size)/(float)Math.log(2);
-        if(!((float)(x)/dimension == (int)(x)/dimension)){
+        // Computed in float, log2(2^26) came out as 25.9999981 and the check threw
+        // for a size that does fit. Round to the nearest power of two first.
+        int x = (int)Math.round(Math.log(size)/Math.log(2));
+        if(x % dimension != 0){
             throw new Error("Size does not fit Hilbert curve of dimension.");
         }
-        return new Hilbert(cantordust, dimension, (int)(x/dimension));
+        return new Hilbert(cantordust, dimension, x/dimension);
     }
 
     public int transform(int entry, int direction, int width, int x){
@@ -158,7 +164,10 @@ public class Hilbert extends Scurve{
         /*
             Size of this curve in each dimension.
         */
-        int x = (int)Math.ceil(Math.pow(getLength(), 1/(float)(this.dimension)));
+        // Math.pow(2^24, 1/(float)3) lands on 256.0000423, and ceil turned that into
+        // 257. Rounding to the nearest integer gives the exact edge length, since a
+        // curve of this dimension and order always has an integral one.
+        int x = (int)Math.round(Math.pow(getLength(), 1.0/(double)(this.dimension)));
         return new TwoIntegerTuple(x, x);
     }
 }

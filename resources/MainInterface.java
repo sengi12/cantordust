@@ -257,7 +257,7 @@ public class MainInterface extends JPanel {
         gbc.gridy = 5;
         add(themeButton, gbc);
 
-        long minGhidraAddress = Long.parseLong(cantordust.getCurrentProgram().getMinAddress().toString(false), 16);
+        long minGhidraAddress = cantordust.getMinAddressOffset();
         long maxAddress = minGhidraAddress + macroSlider.getUpperValue(); 
         long minAddress = minGhidraAddress + macroSlider.getValue() - 1;
         
@@ -308,7 +308,7 @@ public class MainInterface extends JPanel {
                     JSlider slider = (JSlider)e.getSource();
                     data = Arrays.copyOfRange(fullData, dataSlider.getValue(), dataSlider.getValue() + 1048575);
     
-                    long minGhidraAddress1 = Long.parseLong(cantordust.getCurrentProgram().getMinAddress().toString(false), 16);
+                    long minGhidraAddress1 = cantordust.getMinAddressOffset();
                     // Update text for upper and lower value of microSlider
                     long maxAddress1 = minGhidraAddress1 + dataSlider.getValue() + microSlider.getUpperValue();
                     long minAddress1 = minGhidraAddress1 + dataSlider.getValue() + macroSlider.getValue() + microSlider.getValue() - 1;
@@ -326,7 +326,7 @@ public class MainInterface extends JPanel {
         macroSlider.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent e) {
                 BitMapSlider slider = (BitMapSlider) e.getSource();
-                long minGhidraAddress1 = Long.parseLong(cantordust.getCurrentProgram().getMinAddress().toString(false), 16);
+                long minGhidraAddress1 = cantordust.getMinAddressOffset();
                 long maxAddress1 = minGhidraAddress1 + slider.getUpperValue();
                 long minAddress1 = minGhidraAddress1 + slider.getValue() - 1;
 
@@ -376,7 +376,7 @@ public class MainInterface extends JPanel {
         microSlider.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent e) {
                 BitMapSlider slider = (BitMapSlider) e.getSource();
-                long minGhidraAddress1 = Long.parseLong(cantordust.getCurrentProgram().getMinAddress().toString(false), 16);
+                long minGhidraAddress1 = cantordust.getMinAddressOffset();
                 long maxAddress1 = minGhidraAddress1 + slider.getUpperValue();
                 long minAddress1 = minGhidraAddress1 + slider.getValue();
 
