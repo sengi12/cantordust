@@ -16,8 +16,14 @@ public class Utils{
     }
     public double entropy(byte[] data, int blocksize, int offset, int symbols) {
         int start;
-        if(data.length < blocksize){
-            throw new Error("Data length must be larger than block size");
+        if(data.length == 0){
+            return 0;
+        }
+        // Short inputs are legitimate - segmented executables, tail blocks, and
+        // small selections all produce them. Shrink the window to fit rather than
+        // throwing an Error and killing the render thread.
+        if(blocksize > data.length){
+            blocksize = data.length;
         }
         if(offset < blocksize/2){
             start = 0;
@@ -37,6 +43,11 @@ public class Utils{
             hist.put(data[i], count+1);
         }
         int base = Math.min(blocksize, symbols);
+        // log(1) is 0, so a single-symbol window would divide by zero below.
+        // Uniform data has zero entropy anyway.
+        if(base < 2){
+            return 0;
+        }
         double entropy = 0;
         Collection<Integer> c = hist.values();
         Iterator<Integer> itr = c.iterator();

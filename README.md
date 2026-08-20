@@ -34,10 +34,13 @@ Take a look at [this blogpost](https://inside.battelle.org/blog-details/battelle
 
 1. Navigate to your `cantordust/` directory that stores this repository.
 2. run: `git pull`
-3. run: `python cleanup.py`
-   - If this doesn't work, refer to *"Development Tips:"*, section *"Ghidra Script Compilation"* for details on setup of your cleanup script.
+3. If Ghidra is already open, quit it and run `python3 cleanup.py`. Ghidra
+   recompiles changed scripts by itself, but a session that has already loaded
+   Cantordust goes on using the classes it started with.
 4. Open up Ghidra and launch Cantordust as normal.
-   - If you're having trouble, refer to *"Installation and Setup: Steps 4-5"* 
+   - If a change still does not take effect, see *"Development Tips:"*, section
+     *"Ghidra Script Compilation"*.
+   - If you're having trouble launching, refer to *"Installation and Setup: Steps 4-5"* 
 
 ## Development Tips:
 
@@ -64,14 +67,35 @@ cantordust.printf("");
 
 #### Ghidra Script Compilation
 
-Ghidra Scripts are <u>**not**</u> automatically recompiled at runtime. This means that in order for you to make sure your live changes actually get applied at runtime, you need to delete the related `.class` files that Ghidra generates at compilation. Ghidra stores these class files in a directory labeled `bin` that is unique to every user, making it difficult to automate. We currently do this with a python script, `cleanup.py`, which looks for a file within the same directory called `ghidra_bin_location.txt`. Our python script expects the `txt` file to contain a utf-8 encoding of your specific bin location where the `.class` files are generated. The python script then will delete every `.class` file within the directory.  `ghidra_bin_location.txt` must exist and contain the ghidra bin folder location for it to work properly. 
+Ghidra recompiles a script when its source changes, so a freshly started Ghidra
+picks up your edits - including edits to the classes under `resources/`. A
+session that already has Cantordust loaded is a different matter: the bundle is
+resolved and its classes are in memory, and editing the source underneath it
+will not dislodge them. After changing code, quit Ghidra, run `cleanup.py`, and
+start it again.
 
-> **Update:** We have made advancements in automating this process, where `Cantordust.java` will actually locate the `bin` directory for you and write the location in a `ghidra_bin_location.txt` file for you at runtime. If this doesn't work on your operating system for whatever reason, the cleanup script will not work and you will have to create the `ghidra_bin_location.txt` file yourself.
+If a change still appears not to apply, check the Ghidra console: when a compile
+fails, Ghidra keeps running the last bundle that built successfully, which looks
+a lot like a stale cache.
 
-Here is an example file location on a linux system:
+Since Ghidra 9.2 compiled scripts are stored as OSGi bundles under your user
+settings directory, one bundle per source directory:
 
 ```txt
-/home/user/.ghidra/.ghidra_9.1_PUBLIC/dev/ghidra_scripts/bin/
+~/.ghidra/.ghidra_<version>/osgi/compiled-bundles/<hash>/
 ```
 
-> If you run into issues when running the script, this is probably because of the `UTF` encoding in your txt file. It should be `UTF-8`, but if you're having trouble figuring out how to force this you can edit the python script to decode `UTF-16` instead.
+Later Ghidra versions moved this settings directory out of `~/.ghidra` to a
+platform-specific location, so the path above is not fixed. To clear the cache
+without hunting for it, run:
+
+```sh
+python3 cleanup.py            # remove bundles built from this checkout
+python3 cleanup.py --dry-run  # show what would be removed
+python3 cleanup.py --all      # remove every compiled bundle
+```
+
+The script searches the known settings locations, and only removes bundles
+containing a class built from this checkout unless you pass `--all`. Use
+`--settings-dir` if your Ghidra keeps settings somewhere else.
+

@@ -2,6 +2,7 @@ package resources;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.InputEvent;
 import java.io.File;
 import java.io.IOException;
 
@@ -16,8 +17,10 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Image;
 import java.awt.Insets;
+import java.awt.Toolkit;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.function.Supplier;
 
 public class MainInterface extends JPanel {
     private byte[] data;
@@ -210,7 +213,7 @@ public class MainInterface extends JPanel {
         twoTupleButton.addActionListener(new open_two_tuple());
         twoTupleButton.setPreferredSize(new Dimension(50, 50));
         twoTupleButton.setBackground(Color.darkGray);
-        twoTupleButton.setToolTipText("Two Tuple");
+        twoTupleButton.setToolTipText("Two Tuple  (" + detachHint() + " for a new window)");
         gbc.gridx = xOffset + 532;
         gbc.gridheight = 1;
         gbc.gridwidth = 1;
@@ -221,7 +224,7 @@ public class MainInterface extends JPanel {
         eightBitPerPixelBitMapButton.addActionListener(new open_8bpp_BitMap());
         eightBitPerPixelBitMapButton.setPreferredSize(new Dimension(50, 50));
         eightBitPerPixelBitMapButton.setBackground(Color.darkGray);
-        eightBitPerPixelBitMapButton.setToolTipText("Linear BitMap");
+        eightBitPerPixelBitMapButton.setToolTipText("Linear BitMap  (" + detachHint() + " for a new window)");
         gbc.gridy = 1;
         add(eightBitPerPixelBitMapButton, gbc);
 
@@ -230,7 +233,7 @@ public class MainInterface extends JPanel {
         byteCloudButton.addActionListener(new open_byte_cloud());
         byteCloudButton.setPreferredSize(new Dimension(50, 50));
         byteCloudButton.setBackground(Color.darkGray);
-        byteCloudButton.setToolTipText("Byte Cloud");
+        byteCloudButton.setToolTipText("Byte Cloud  (" + detachHint() + " for a new window)");
         gbc.gridy = 2;
         add(byteCloudButton, gbc);
         
@@ -239,7 +242,7 @@ public class MainInterface extends JPanel {
         metricMapButton.addActionListener(new open_metric_map());
         metricMapButton.setPreferredSize(new Dimension(50, 50));
         metricMapButton.setBackground(Color.darkGray);
-        metricMapButton.setToolTipText("Metric Map");
+        metricMapButton.setToolTipText("Metric Map  (" + detachHint() + " for a new window)");
         gbc.gridy = 3;
         add(metricMapButton, gbc);
 
@@ -248,7 +251,7 @@ public class MainInterface extends JPanel {
         oneTupleButton.addActionListener(new open_one_tuple());
         oneTupleButton.setPreferredSize(new Dimension(50, 50));
         oneTupleButton.setBackground(Color.darkGray);
-        oneTupleButton.setToolTipText("One Tuple");
+        oneTupleButton.setToolTipText("One Tuple  (" + detachHint() + " for a new window)");
         gbc.gridy = 4;
         add(oneTupleButton, gbc);
         
@@ -257,7 +260,7 @@ public class MainInterface extends JPanel {
         gbc.gridy = 5;
         add(themeButton, gbc);
 
-        long minGhidraAddress = Long.parseLong(cantordust.getCurrentProgram().getMinAddress().toString(false), 16);
+        long minGhidraAddress = cantordust.getMinAddressOffset();
         long maxAddress = minGhidraAddress + macroSlider.getUpperValue(); 
         long minAddress = minGhidraAddress + macroSlider.getValue() - 1;
         
@@ -308,7 +311,7 @@ public class MainInterface extends JPanel {
                     JSlider slider = (JSlider)e.getSource();
                     data = Arrays.copyOfRange(fullData, dataSlider.getValue(), dataSlider.getValue() + 1048575);
     
-                    long minGhidraAddress1 = Long.parseLong(cantordust.getCurrentProgram().getMinAddress().toString(false), 16);
+                    long minGhidraAddress1 = cantordust.getMinAddressOffset();
                     // Update text for upper and lower value of microSlider
                     long maxAddress1 = minGhidraAddress1 + dataSlider.getValue() + microSlider.getUpperValue();
                     long minAddress1 = minGhidraAddress1 + dataSlider.getValue() + macroSlider.getValue() + microSlider.getValue() - 1;
@@ -326,7 +329,7 @@ public class MainInterface extends JPanel {
         macroSlider.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent e) {
                 BitMapSlider slider = (BitMapSlider) e.getSource();
-                long minGhidraAddress1 = Long.parseLong(cantordust.getCurrentProgram().getMinAddress().toString(false), 16);
+                long minGhidraAddress1 = cantordust.getMinAddressOffset();
                 long maxAddress1 = minGhidraAddress1 + slider.getUpperValue();
                 long minAddress1 = minGhidraAddress1 + slider.getValue() - 1;
 
@@ -376,7 +379,7 @@ public class MainInterface extends JPanel {
         microSlider.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent e) {
                 BitMapSlider slider = (BitMapSlider) e.getSource();
-                long minGhidraAddress1 = Long.parseLong(cantordust.getCurrentProgram().getMinAddress().toString(false), 16);
+                long minGhidraAddress1 = cantordust.getMinAddressOffset();
                 long maxAddress1 = minGhidraAddress1 + slider.getUpperValue();
                 long minAddress1 = minGhidraAddress1 + slider.getValue();
 
@@ -513,6 +516,52 @@ public class MainInterface extends JPanel {
         }
     }
 
+    /**
+     * Modifier that opens a visualization in its own window instead of the main
+     * one: Command on macOS, Control elsewhere. ActionEvent reports legacy
+     * modifier bits, so the toolkit's extended mask is mapped back onto them.
+     */
+    private static int detachModifier() {
+        int ex = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+        return ((ex & InputEvent.META_DOWN_MASK) != 0) ? ActionEvent.META_MASK : ActionEvent.CTRL_MASK;
+    }
+
+    /** Label for the detach modifier, for button tooltips. */
+    private static String detachHint() {
+        return (detachModifier() == ActionEvent.META_MASK) ? "\u2318-click" : "Ctrl-click";
+    }
+
+    private static boolean opensInNewWindow(ActionEvent e) {
+        return (e.getModifiers() & detachModifier()) != 0;
+    }
+
+    /**
+     * Swap the main window's visualization for the panel stored under key,
+     * building it through factory the first time it is asked for.
+     */
+    private void showInMainWindow(visualizerMapKeys key, Supplier<JPanel> factory) {
+        currVis.setVisible(false);
+        remove(currVis);
+        dispMetricMap = false;
+        if(!visualizerPanels.containsKey(key)) {
+            visualizerPanels.put(key, factory.get());
+        }
+        currVis = visualizerPanels.get(key);
+        currVis.setPreferredSize(new Dimension(512, 512));
+        currVis.setVisible(true);
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = xOffset + 20;
+        gbc.gridy = 0;
+        gbc.gridheight = 512;
+        gbc.gridwidth = 512;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.anchor = GridBagConstraints.CENTER;
+        gbc.insets = new Insets(5, 5, 5, 5);
+        add(currVis, gbc);
+        repaint();
+        validate();
+    }
+
     private class open_one_tuple implements ActionListener {
         open_one_tuple() {
         	
@@ -520,38 +569,17 @@ public class MainInterface extends JPanel {
 
         @Override
         public void actionPerformed(ActionEvent e) {
-            if (!(currVis instanceof OneTupleVisualizer)) {
-                if ((e.getModifiers() & ActionEvent.SHIFT_MASK) > 0) {
-                    currVis.setVisible(false);
-                    remove(currVis);
-                    dispMetricMap = false;
-                    if(!visualizerPanels.containsKey(visualizerMapKeys.ONETUPLE)) {
-                        visualizerPanels.put(visualizerMapKeys.ONETUPLE, new OneTupleVisualizer(OneTupleVisualizer.getWindowSize(), cantordust, frame));
-                    }
-                    currVis = visualizerPanels.get(visualizerMapKeys.ONETUPLE);
-                    //currVis = new OneTupleVisualizer(OneTupleVisualizer.getWindowSize(), cantordust, frame);
-                    currVis.setPreferredSize(new Dimension(512, 512));
-                    currVis.setVisible(true);
-                    GridBagConstraints gbc = new GridBagConstraints();
-                    gbc.gridx = xOffset + 20;
-                    gbc.gridy = 0;
-                    gbc.gridheight = 512;
-                    gbc.gridwidth = 512;
-                    gbc.fill = GridBagConstraints.NONE;
-                    gbc.anchor = GridBagConstraints.CENTER;
-                    gbc.insets = new Insets(5, 5, 5, 5);
-                    add(currVis, gbc);
-                    validate();
-                } else {
-                    //JOptionPane.showMessageDialog(null, "test", "InfoBox: " + "test", JOptionPane.INFORMATION_MESSAGE);
-                    JFrame frame1 = new JFrame("1 Tuple Visualization");
-                    OneTupleVisualizer oneTupleVis = new OneTupleVisualizer(OneTupleVisualizer.getWindowSize(), cantordust, frame1);
-                    frame1.getContentPane().add(oneTupleVis);
-                    frame1.setSize(OneTupleVisualizer.getWindowSize(), OneTupleVisualizer.getWindowSize());
-                    //frame.pack();
-                    frame1.setVisible(true);
-                    frame1.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-                }
+            if (opensInNewWindow(e)) {
+                //JOptionPane.showMessageDialog(null, "test", "InfoBox: " + "test", JOptionPane.INFORMATION_MESSAGE);
+                JFrame frame1 = new JFrame("1 Tuple Visualization");
+                OneTupleVisualizer oneTupleVis = new OneTupleVisualizer(OneTupleVisualizer.getWindowSize(), cantordust, frame1);
+                frame1.getContentPane().add(oneTupleVis);
+                frame1.setSize(OneTupleVisualizer.getWindowSize(), OneTupleVisualizer.getWindowSize());
+                //frame.pack();
+                frame1.setVisible(true);
+                frame1.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+            } else if (!(currVis instanceof OneTupleVisualizer)) {
+                showInMainWindow(visualizerMapKeys.ONETUPLE, () -> new OneTupleVisualizer(OneTupleVisualizer.getWindowSize(), cantordust, frame));
             }
         }
     }
@@ -563,38 +591,17 @@ public class MainInterface extends JPanel {
 
         @Override
         public void actionPerformed(ActionEvent e) {
-            if (!(currVis instanceof TwoTupleVisualizer)) {
-                if ((e.getModifiers() & ActionEvent.SHIFT_MASK) > 0) {
-                    currVis.setVisible(false);
-                    remove(currVis);
-                    dispMetricMap = false;
-                    if(!visualizerPanels.containsKey(visualizerMapKeys.TWOTUPLE)) {
-                        visualizerPanels.put(visualizerMapKeys.TWOTUPLE, new TwoTupleVisualizer(TwoTupleVisualizer.getWindowSize(), cantordust, frame));
-                    }
-                    currVis = visualizerPanels.get(visualizerMapKeys.TWOTUPLE);
-                    //currVis = new OneTupleVisualizer(OneTupleVisualizer.getWindowSize(), cantordust, frame);
-                    currVis.setPreferredSize(new Dimension(512, 512));
-                    currVis.setVisible(true);
-                    GridBagConstraints gbc = new GridBagConstraints();
-                    gbc.gridx = xOffset + 20;
-                    gbc.gridy = 0;
-                    gbc.gridheight = 512;
-                    gbc.gridwidth = 512;
-                    gbc.fill = GridBagConstraints.NONE;
-                    gbc.anchor = GridBagConstraints.CENTER;
-                    gbc.insets = new Insets(5, 5, 5, 5);
-                    add(currVis, gbc);
-                    validate();
-                } else {
-                    //JOptionPane.showMessageDialog(null, "test", "InfoBox: " + "test", JOptionPane.INFORMATION_MESSAGE);
-                    JFrame frame1 = new JFrame("2 Tuple Visualization");
-                    TwoTupleVisualizer twoTupleVis = new TwoTupleVisualizer(TwoTupleVisualizer.getWindowSize(), cantordust, frame1);
-                    frame1.getContentPane().add(twoTupleVis);
-                    frame1.setSize(TwoTupleVisualizer.getWindowSize(), TwoTupleVisualizer.getWindowSize());
-                    //frame.pack();
-                    frame1.setVisible(true);
-                    frame1.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-                }
+            if (opensInNewWindow(e)) {
+                //JOptionPane.showMessageDialog(null, "test", "InfoBox: " + "test", JOptionPane.INFORMATION_MESSAGE);
+                JFrame frame1 = new JFrame("2 Tuple Visualization");
+                TwoTupleVisualizer twoTupleVis = new TwoTupleVisualizer(TwoTupleVisualizer.getWindowSize(), cantordust, frame1);
+                frame1.getContentPane().add(twoTupleVis);
+                frame1.setSize(TwoTupleVisualizer.getWindowSize(), TwoTupleVisualizer.getWindowSize());
+                //frame.pack();
+                frame1.setVisible(true);
+                frame1.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+            } else if (!(currVis instanceof TwoTupleVisualizer)) {
+                showInMainWindow(visualizerMapKeys.TWOTUPLE, () -> new TwoTupleVisualizer(TwoTupleVisualizer.getWindowSize(), cantordust, frame));
             }
         }
     }
@@ -606,37 +613,16 @@ public class MainInterface extends JPanel {
 
         @Override
         public void actionPerformed(ActionEvent e) {
-            if (!(currVis instanceof BitMapVisualizer)) {
-                if ((e.getModifiers() & ActionEvent.SHIFT_MASK) > 0) {
-                    currVis.setVisible(false);
-                    remove(currVis);
-                    dispMetricMap = false;
-                    if(!visualizerPanels.containsKey(visualizerMapKeys.BITMAP)) {
-                        cantordust.cdprint("map does not contain bitmap\n");
-                        visualizerPanels.put(visualizerMapKeys.BITMAP, new BitMapVisualizer(BitMapVisualizer.getWindowSize(), cantordust, frame));
-                    } else {cantordust.cdprint("map does contain bitmap\n");}
-                    currVis = visualizerPanels.get(visualizerMapKeys.BITMAP);
-                    currVis.setVisible(true);
-                    currVis.setPreferredSize(new Dimension(512, 512));
-                    GridBagConstraints gbc = new GridBagConstraints();
-                    gbc.gridx = xOffset + 20;
-                    gbc.gridy = 0;
-                    gbc.gridheight = 512;
-                    gbc.gridwidth = 512;
-                    gbc.fill = GridBagConstraints.NONE;
-                    gbc.anchor = GridBagConstraints.CENTER;
-                    gbc.insets = new Insets(5, 5, 5, 5);
-                    add(currVis, gbc);
-                    validate();
-                } else {
-                    JFrame frame1 = new JFrame("Linear Bit Map");
-                    BitMapVisualizer bitMapVis = new BitMapVisualizer(BitMapVisualizer.getWindowSize(), cantordust, frame1);
-                    frame1.getContentPane().add(bitMapVis);
-                    bitMapVis.setColorMapper(new EightBitPerPixelMapper(cantordust));
-                    frame1.setSize(BitMapVisualizer.getWindowSize(), BitMapVisualizer.getWindowSize());
-                    frame1.setVisible(true);
-                    frame1.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-                }
+            if (opensInNewWindow(e)) {
+                JFrame frame1 = new JFrame("Linear Bit Map");
+                BitMapVisualizer bitMapVis = new BitMapVisualizer(BitMapVisualizer.getWindowSize(), cantordust, frame1);
+                frame1.getContentPane().add(bitMapVis);
+                bitMapVis.setColorMapper(new EightBitPerPixelMapper(cantordust));
+                frame1.setSize(BitMapVisualizer.getWindowSize(), BitMapVisualizer.getWindowSize());
+                frame1.setVisible(true);
+                frame1.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+            } else if (!(currVis instanceof BitMapVisualizer)) {
+                showInMainWindow(visualizerMapKeys.BITMAP, () -> new BitMapVisualizer(BitMapVisualizer.getWindowSize(), cantordust, frame));
             }
         }
     }
@@ -648,35 +634,15 @@ public class MainInterface extends JPanel {
 
         @Override
         public void actionPerformed(ActionEvent e) {
-            if (!(currVis instanceof ByteCloudVisualizer)) {
-                if ((e.getModifiers() & ActionEvent.SHIFT_MASK) > 0) {
-                    currVis.setVisible(false);
-                    remove(currVis);
-                    dispMetricMap = false;
-                    if(!visualizerPanels.containsKey(visualizerMapKeys.BYTECLOUD)) {
-                        visualizerPanels.put(visualizerMapKeys.BYTECLOUD, new ByteCloudVisualizer(ByteCloudVisualizer.getWindowSize(), cantordust));
-                    }
-                    currVis = visualizerPanels.get(visualizerMapKeys.BYTECLOUD);
-                    currVis.setVisible(true);
-                    currVis.setPreferredSize(new Dimension(512, 512));
-                    GridBagConstraints gbc = new GridBagConstraints();
-                    gbc.gridx = xOffset + 20;
-                    gbc.gridy = 0;
-                    gbc.gridheight = 512;
-                    gbc.gridwidth = 512;
-                    gbc.fill = GridBagConstraints.NONE;
-                    gbc.anchor = GridBagConstraints.CENTER;
-                    gbc.insets = new Insets(5, 5, 5, 5);
-                    add(currVis, gbc);
-                    validate();
-                } else {
-                    JFrame frame1 = new JFrame("Byte Cloud Visualization");
-                    ByteCloudVisualizer byteCloudVis = new ByteCloudVisualizer(ByteCloudVisualizer.getWindowSize(), cantordust);
-                    frame1.getContentPane().add(byteCloudVis);
-                    frame1.setSize(ByteCloudVisualizer.getWindowSize(), ByteCloudVisualizer.getWindowSize());
-                    frame1.setVisible(true);
-                    frame1.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-                }
+            if (opensInNewWindow(e)) {
+                JFrame frame1 = new JFrame("Byte Cloud Visualization");
+                ByteCloudVisualizer byteCloudVis = new ByteCloudVisualizer(ByteCloudVisualizer.getWindowSize(), cantordust);
+                frame1.getContentPane().add(byteCloudVis);
+                frame1.setSize(ByteCloudVisualizer.getWindowSize(), ByteCloudVisualizer.getWindowSize());
+                frame1.setVisible(true);
+                frame1.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+            } else if (!(currVis instanceof ByteCloudVisualizer)) {
+                showInMainWindow(visualizerMapKeys.BYTECLOUD, () -> new ByteCloudVisualizer(ByteCloudVisualizer.getWindowSize(), cantordust));
             }
         }
     }
@@ -688,36 +654,15 @@ public class MainInterface extends JPanel {
 
         @Override
         public void actionPerformed(ActionEvent e) {
-            if (!(currVis instanceof MetricMap)) {
-                if ((e.getModifiers() & ActionEvent.SHIFT_MASK) > 0) {
-                    currVis.setVisible(false);
-                    remove(currVis);
-                    dispMetricMap = false;
-                    if(!visualizerPanels.containsKey(visualizerMapKeys.METRIC)) {
-                        visualizerPanels.put(visualizerMapKeys.METRIC, new MetricMap(MetricMap.getWindowSize(), cantordust, frame, true));
-                    }
-                    currVis = visualizerPanels.get(visualizerMapKeys.METRIC);
-                    currVis.setPreferredSize(new Dimension(512, 512));
-                    currVis.setVisible(true);
-                    GridBagConstraints gbc = new GridBagConstraints();
-                    gbc.gridx = xOffset + 20;
-                    gbc.gridy = 0;
-                    gbc.gridheight = 512;
-                    gbc.gridwidth = 512;
-                    gbc.fill = GridBagConstraints.NONE;
-                    gbc.anchor = GridBagConstraints.CENTER;
-                    gbc.insets = new Insets(5, 5, 5, 5);
-                    add(currVis, gbc) ;
-                    repaint();
-                    validate();
-                } else {
-                    JFrame frame1 = new JFrame("Metric Map");
-                    MetricMap metricMap = new MetricMap(MetricMap.getWindowSize(), cantordust, frame1, false);
-                    frame1.getContentPane().add(metricMap);
-                    frame1.setSize(MetricMap.getWindowSize(), MetricMap.getWindowSize()+30);
-                    frame1.setVisible(true);
-                    frame1.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-                }
+            if (opensInNewWindow(e)) {
+                JFrame frame1 = new JFrame("Metric Map");
+                MetricMap metricMap = new MetricMap(MetricMap.getWindowSize(), cantordust, frame1, false);
+                frame1.getContentPane().add(metricMap);
+                frame1.setSize(MetricMap.getWindowSize(), MetricMap.getWindowSize()+30);
+                frame1.setVisible(true);
+                frame1.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+            } else if (!(currVis instanceof MetricMap)) {
+                showInMainWindow(visualizerMapKeys.METRIC, () -> new MetricMap(MetricMap.getWindowSize(), cantordust, frame, true));
             }
         }
     }

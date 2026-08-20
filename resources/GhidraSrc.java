@@ -17,9 +17,7 @@ import ghidra.program.database.mem.FileBytes;
 import javax.swing.JFrame;
 import java.io.File;
 import java.io.IOException;
-import java.net.UnknownHostException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 
@@ -76,27 +74,58 @@ public class GhidraSrc extends GhidraScript{
 
     public byte[] getData(){
         byte[] data = getJavaData();
-        if(data.length == 0){
+        // Reading the original file off disk is the most faithful source, but it
+        // comes up short (or empty) whenever the recorded path is stale, points at
+        // a container, or the project was moved to another machine. Only trust it
+        // when it covers at least as much as Ghidra's own copy of the file bytes,
+        // which we can measure from metadata alone.
+        if(data.length < getFileBytesSize()){
             data = getGhidraData();
         }
         return data;
     }
 
+    /**
+     * Total size of every FileBytes the program holds, read from metadata only.
+     */
+    public long getFileBytesSize() {
+        long size = 0;
+        for(FileBytes fb : currentProgram.getMemory().getAllFileBytes()) {
+            size += fb.getSize();
+        }
+        return size;
+    }
+
     public byte[] getGhidraData() {
         List<FileBytes> bytes = currentProgram.getMemory().getAllFileBytes();
-        if(bytes.size() > 0) {
-            long size = bytes.get(0).getSize();
-            byte[] data = new byte[(int) size];
-            try {
-                for (int i = 0; i < size; i++) {
-                    data[i] = bytes.get(0).getOriginalByte((long) i);
-                }
-            } catch (IOException e) {
-            }
-            return data;
-        } else {
+        if(bytes.isEmpty()) {
             return getDataThroughAddressIteration();
         }
+        // A program can carry more than one FileBytes (containers, multi-segment
+        // loaders, added files). Using only the first one silently truncated the
+        // view to whatever that first entry happened to cover.
+        long total = getFileBytesSize();
+        if(total <= 0 || total > Integer.MAX_VALUE) {
+            return getDataThroughAddressIteration();
+        }
+        byte[] data = new byte[(int) total];
+        int pos = 0;
+        for(FileBytes fb : bytes) {
+            int len = (int) fb.getSize();
+            try {
+                // Bulk read; falls back to a byte at a time if the block read is short.
+                int read = fb.getOriginalBytes(0L, data, pos, len);
+                if(read < len) {
+                    for(int i = read; i < len; i++) {
+                        data[pos + i] = fb.getOriginalByte((long) i);
+                    }
+                }
+            } catch (IOException e) {
+                cdprint("ERROR reading file bytes\n" + e.toString());
+            }
+            pos += len;
+        }
+        return data;
     }
 
     public byte[] getDataThroughAddressIteration() {
@@ -114,20 +143,43 @@ public class GhidraSrc extends GhidraScript{
     }
 
     public byte[] getJavaData() {
+        byte[] data = {};
         String path = currentProgram.getExecutablePath();
-        if(System.getProperty("os.name").equals("Windows 10") && (path.charAt(0) == '\\' || path.charAt(0) == '/')) {
+        if(path == null || path.isEmpty()) {
+            return data;
+        }
+        // On Windows, getExecutablePath() hands back a leading-separator path such
+        // as "/C:/dir/file", which Paths.get rejects. This applied to every Windows
+        // release, not just the one the original check named.
+        if(System.getProperty("os.name", "").startsWith("Windows")
+                && path.length() > 2 && (path.charAt(0) == '\\' || path.charAt(0) == '/')
+                && path.charAt(2) == ':') {
             path = path.substring(1);
         }
-        Path path_p = Paths.get(path);
-        byte[] data = {};
         try {
-            data = Files.readAllBytes(path_p);
-        } catch (UnknownHostException e) {
-            e.printStackTrace();
+            data = Files.readAllBytes(Paths.get(path));
         } catch (IOException e) {
-            e.printStackTrace();
+            cdprint("Could not read original file at " + path + "\n" + e.toString());
+        } catch (RuntimeException e) {
+            // InvalidPathException and friends are unchecked; letting one escape
+            // here aborted the whole script instead of falling back to Ghidra.
+            cdprint("Invalid original file path " + path + "\n" + e.toString());
         }
         return data;
+    }
+
+    /**
+     * Numeric offset of the program's lowest address.
+     *
+     * Callers used to do Long.parseLong(getMinAddress().toString(false), 16), which
+     * throws on two real address formats: segmented addresses render as "1000:0000"
+     * (16-bit DOS executables), and any address above Long.MAX_VALUE overflows the
+     * signed parse (kernel-space images at 0xFFFF...). Asking the Address for its
+     * offset avoids the string round-trip entirely.
+     */
+    public long getMinAddressOffset() {
+        Address min = currentProgram.getMinAddress();
+        return (min == null) ? 0L : min.getOffset();
     }
 
     /**

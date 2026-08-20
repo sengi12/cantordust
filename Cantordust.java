@@ -4,6 +4,7 @@
 // @keybinding alt C
 // @toolbar resources/icons/icon.png
 import java.awt.Dimension;
+import java.io.File;
 
 import javax.swing.*;
 
@@ -20,8 +21,10 @@ public class Cantordust extends GhidraSrc {
 
     @Override
     protected void run() throws Exception {
-        this.currentDirectory = sourceFile.getAbsolutePath();
-        this.currentDirectory = currentDirectory.substring(0, currentDirectory.length()-15);
+        // Resolve the script's own directory rather than trimming a hard-coded
+        // filename length, so the resources/ folder is found wherever Ghidra
+        // picked the script up from.
+        this.currentDirectory = sourceFile.getParentFile().getAbsolutePath() + File.separator;
         if(currentProgram==null){
             printf("Open a file to examine with CantorDust before continuing!\n");
             return;
