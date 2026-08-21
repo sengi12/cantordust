@@ -18,7 +18,13 @@ import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 import java.util.Arrays;
 
+import javax.swing.AbstractAction;
+import javax.swing.Action;
+import javax.swing.ActionMap;
 import javax.swing.ButtonGroup;
+import javax.swing.InputMap;
+import javax.swing.JCheckBoxMenuItem;
+import javax.swing.KeyStroke;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
@@ -59,9 +65,14 @@ public class ThreeTupleVisualizer extends Visualizer {
     private static final int SHAPE_SPHERE = 1;
     private static final int SHAPE_CYLINDER = 2;
 
-    private static final int COLOR_TRIGRAM = 0;
-    private static final int COLOR_GREEN = 1;
-    private static final int COLOR_HEAT = 2;
+    // Colour modes and the tone curve are shared with the 2-tuple plot; see
+    // DensityShader for why the curve is shaped the way it is.
+    private static final int COLOR_TRIGRAM = DensityShader.TRIGRAM;
+    private static final int COLOR_TRIGRAM_LITERAL = DensityShader.TRIGRAM_LITERAL;
+    private static final int COLOR_GREEN = DensityShader.GREEN;
+    private static final int COLOR_HEAT = DensityShader.HEAT;
+    private static final int COLOR_ICE = DensityShader.ICE;
+    private static final int COLOR_MONO = DensityShader.MONO;
 
     /**
      * One immutable snapshot of the histogram. The build thread publishes a new
@@ -117,6 +128,15 @@ public class ThreeTupleVisualizer extends Visualizer {
     private volatile boolean moving;
     private volatile int shape = SHAPE_CUBE;
     private volatile int colorMode = COLOR_TRIGRAM;
+    /** Splat size in pixels. Larger points make a sparse cloud far more legible. */
+    private volatile int pointSize = 1;
+    /** Until the user picks a size, it follows how sparse the cloud turned out. */
+    private volatile boolean pointSizeAuto = true;
+    /** Grow points as they come towards the camera, for a stronger sense of depth. */
+    private volatile boolean depthScale;
+    /** The reference cube helps orientation, but hides the cloud's own shape. */
+    private volatile boolean showCube = true;
+    private javax.swing.Timer spinTimer;
     private volatile int viewW = 512, viewH = 512;
     private volatile String status = "";
 
@@ -128,7 +148,7 @@ public class ThreeTupleVisualizer extends Visualizer {
     private int bufIndex;
     private int bufW, bufH;
     private int[] toneLut;
-    private float toneLutRef = Float.NaN;
+    private int[] toneHist;
 
     private final Object renderLock = new Object();
     private boolean renderDirty;
@@ -154,6 +174,7 @@ public class ThreeTupleVisualizer extends Visualizer {
         addChangeListeners();
         addMouseControls();
         createPopupMenu();
+        addKeyBindings();
         addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
@@ -289,7 +310,14 @@ public class ThreeTupleVisualizer extends Visualizer {
             b1 = b2;
         }
 
-        cloud = (occupied > MAX_POINTS) ? compactFolded(vol) : compactFull(vol, occupied);
+        Cloud built = (occupied > MAX_POINTS) ? compactFolded(vol) : compactFull(vol, occupied);
+        if (pointSizeAuto) {
+            // A small binary puts a few thousand points on a quarter-million
+            // pixel canvas. One-pixel splats leave that looking almost empty,
+            // so start sparse clouds at a larger point.
+            pointSize = built.n < 100_000 ? 2 : 1;
+        }
+        cloud = built;
         status = "";
         requestRender();
     }
@@ -440,6 +468,8 @@ public class ThreeTupleVisualizer extends Visualizer {
             float ox = w * 0.5f, oy = h * 0.5f;
             float[] px = c.px, py = c.py, pz = c.pz;
             int[] key = c.key, wt = c.weight;
+            int basePs = pointSize;
+            boolean scaleWithDepth = depthScale;
 
             for (int i = 0; i < c.n; i += stride) {
                 float x = px[i], y = py[i], z = pz[i];
@@ -457,17 +487,54 @@ public class ThreeTupleVisualizer extends Visualizer {
                 if (sx < 0 || sx >= w || sy2 < 0 || sy2 >= h) {
                     continue;
                 }
-                int idx = sy2 * w + sx;
-                int a = acc[idx] + wt[i];
-                acc[idx] = a;
-                if (a > maxAcc) {
-                    maxAcc = a;
+                int ps = basePs;
+                if (scaleWithDepth) {
+                    // Nearer points get bigger. dd runs roughly dist-1 .. dist+1.
+                    ps = (int)(basePs * (d0 / dd));
+                    if (ps < 1) {
+                        ps = 1;
+                    } else if (ps > 6) {
+                        ps = 6;
+                    }
                 }
-                // The heaviest contributor owns the pixel: it drives colour in
-                // trigram mode and is what a click resolves back to.
-                if (wt[i] > pickWeight[idx]) {
-                    pickWeight[idx] = wt[i];
-                    pick[idx] = key[i] + 1;
+                int weight = wt[i];
+                int keyPlus = key[i] + 1;
+                if (ps == 1) {
+                    int idx = sy2 * w + sx;
+                    int a = acc[idx] + weight;
+                    acc[idx] = a;
+                    if (a > maxAcc) {
+                        maxAcc = a;
+                    }
+                    // The heaviest contributor owns the pixel: it drives colour
+                    // in trigram mode and is what a click resolves back to.
+                    if (weight > pickWeight[idx]) {
+                        pickWeight[idx] = weight;
+                        pick[idx] = keyPlus;
+                    }
+                } else {
+                    int half = ps >> 1;
+                    int x0 = sx - half, y0 = sy2 - half;
+                    int x1 = x0 + ps, y1 = y0 + ps;
+                    if (x0 < 0) x0 = 0;
+                    if (y0 < 0) y0 = 0;
+                    if (x1 > w) x1 = w;
+                    if (y1 > h) y1 = h;
+                    for (int py2 = y0; py2 < y1; py2++) {
+                        int row = py2 * w;
+                        for (int px2 = x0; px2 < x1; px2++) {
+                            int idx = row + px2;
+                            int a = acc[idx] + weight;
+                            acc[idx] = a;
+                            if (a > maxAcc) {
+                                maxAcc = a;
+                            }
+                            if (weight > pickWeight[idx]) {
+                                pickWeight[idx] = weight;
+                                pick[idx] = keyPlus;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -477,102 +544,28 @@ public class ThreeTupleVisualizer extends Visualizer {
         repaint();
     }
 
-    /**
-     * Raw counts blow out to white almost immediately, so intensity goes through
-     * a log curve.
-     *
-     * The curve cannot be normalised against the brightest pixel: a binary's
-     * most common trigram (00 00 00, FF FF FF, a hot opcode pair) outruns the
-     * rest by four or five orders of magnitude, and dividing by it floors the
-     * entire structure to black. The reference is a high percentile of the lit
-     * pixels instead, so a handful of pixels clip to white and everything else
-     * lands in a usable range. Exposure moves that reference.
-     *
-     * Cost is kept off the per-pixel path: the curve is a lookup, and untouched
-     * pixels skip it entirely - which is most of them, a trigram cloud being
-     * mostly empty space.
-     */
-    private static final int LUT_SIZE = 4096;
-
     private void toneMap(int[] acc, int[] pick, int[] out, int maxAcc) {
         if (maxAcc <= 0) {
             Arrays.fill(out, 0);
             return;
         }
-
-        // Histogram of lit pixels, saturating at the lookup size. Anything past
-        // that is already far brighter than the reference will ever be.
-        int[] hist = new int[LUT_SIZE];
-        int lit = 0;
-        for (int i = 0; i < acc.length; i++) {
-            int a = acc[i];
-            if (a > 0) {
-                hist[a < LUT_SIZE ? a : LUT_SIZE - 1]++;
-                lit++;
-            }
+        if (toneHist == null) {
+            toneHist = new int[DensityShader.LUT_SIZE];
+            toneLut = new int[DensityShader.LUT_SIZE];
         }
-        if (lit == 0) {
+        if (DensityShader.buildLut(acc, exposure, toneHist, toneLut) == 0) {
             Arrays.fill(out, 0);
             return;
         }
-        int target = (int) (lit * 0.99);
-        int ref = 1;
-        int seen = 0;
-        for (int v = 0; v < LUT_SIZE; v++) {
-            seen += hist[v];
-            if (seen >= target) {
-                ref = v;
-                break;
-            }
-        }
-        float refEff = ref / exposure;
-        if (refEff < 2f) {
-            refEff = 2f;
-        }
-
-        if (toneLut == null) {
-            toneLut = new int[LUT_SIZE];
-        }
-        if (toneLutRef != refEff) {
-            double denom = Math.log1p(refEff);
-            for (int i = 0; i < LUT_SIZE; i++) {
-                int v = (int) (255.0 * Math.log1p(i) / denom);
-                toneLut[i] = v < 0 ? 0 : (v > 255 ? 255 : v);
-            }
-            toneLutRef = refEff;
-        }
         int[] lut = toneLut;
         int mode = colorMode;
-
         for (int i = 0; i < acc.length; i++) {
             int a = acc[i];
             if (a == 0) {
                 out[i] = 0;
                 continue;
             }
-            int v = lut[a < LUT_SIZE ? a : LUT_SIZE - 1];
-            if (mode == COLOR_GREEN) {
-                out[i] = ((v >> 3) << 16) | (v << 8) | (v >> 3);
-            } else if (mode == COLOR_HEAT) {
-                int r = v * 3;
-                int g = v * 3 - 255;
-                int b = v * 3 - 510;
-                if (r > 255) r = 255;
-                if (g < 0) g = 0; else if (g > 255) g = 255;
-                if (b < 0) b = 0; else if (b > 255) b = 255;
-                out[i] = (r << 16) | (g << 8) | b;
-            } else {
-                int k = pick[i] - 1;
-                int r = (((k >> 16) & 0xff) * v) / 255;
-                int g = (((k >> 8) & 0xff) * v) / 255;
-                int b = ((k & 0xff) * v) / 255;
-                // Floor keeps a dark trigram visible against a black background.
-                int floor = v / 4;
-                if (r < floor) r = floor;
-                if (g < floor) g = floor;
-                if (b < floor) b = floor;
-                out[i] = (r << 16) | (g << 8) | b;
-            }
+            out[i] = DensityShader.shade(mode, DensityShader.intensity(lut, a), pick[i] - 1);
         }
     }
 
@@ -594,7 +587,9 @@ public class ThreeTupleVisualizer extends Visualizer {
         }
 
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        drawWireframe(g2, w, h);
+        if (showCube) {
+            drawWireframe(g2, w, h);
+        }
         drawHud(g2, w, h);
     }
 
@@ -655,6 +650,14 @@ public class ThreeTupleVisualizer extends Visualizer {
         g2.drawString(s, x1 + (x1 - x0) / 12, y1 + (y1 - y0) / 12);
     }
 
+    private static String shapeName(int shape) {
+        return shape == SHAPE_CUBE ? "cube" : (shape == SHAPE_SPHERE ? "sphere" : "cylinder");
+    }
+
+    private static String colorName(int mode) {
+        return mode == DensityShader.TRIGRAM ? "trigram" : DensityShader.name(mode);
+    }
+
     private void drawHud(Graphics2D g2, int w, int h) {
         Cloud c = cloud;
         g2.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
@@ -666,8 +669,12 @@ public class ThreeTupleVisualizer extends Visualizer {
         } else {
             left = c.n + " pts"
                     + (c.fold > 0 ? " (128³)" : "")
-                    + "   " + (shape == SHAPE_CUBE ? "cube" : (shape == SHAPE_SPHERE ? "sphere" : "cylinder"))
-                    + "   " + (colorMode == COLOR_TRIGRAM ? "trigram" : (colorMode == COLOR_GREEN ? "green" : "heat"));
+                    + "   " + shapeName(shape)
+                    + "   " + colorName(colorMode)
+                    + "   " + pointSize + "px"
+                    + (Math.abs(exposure - 1f) > 0.01f
+                        ? String.format("   %.1fx", exposure) : "")
+                    + (spinTimer != null ? "   spin" : "");
         }
         g2.drawString(left, 8, h - 10);
 
@@ -700,12 +707,25 @@ public class ThreeTupleVisualizer extends Visualizer {
                 }
             }
         });
+        if (dataRangeSlider != null) {
+            // Files over 25MB are viewed through a 1MB window that this slider
+            // scrolls. Moving it replaces the bytes underneath, so the histogram
+            // has to be built again - a repaint would just redraw a stale cloud.
+            dataRangeSlider.addChangeListener(new ChangeListener() {
+                public void stateChanged(ChangeEvent e) {
+                    if (!dataRangeSlider.getValueIsAdjusting()) {
+                        requestBuild();
+                    }
+                }
+            });
+        }
     }
 
     private void addMouseControls() {
         MouseAdapter m = new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
+                requestFocusInWindow();
                 dragX = e.getX();
                 dragY = e.getY();
                 if (e.isPopupTrigger()) {
@@ -795,6 +815,17 @@ public class ThreeTupleVisualizer extends Visualizer {
         t.start();
     }
 
+    /**
+     * Mirror the in-canvas readout to the shared status line, so a click reports
+     * in the same place every other visualization does.
+     */
+    private void publishStatus() {
+        MainInterface mi = cantordust.getMainInterface();
+        if(mi != null){
+            mi.setStatus(status);
+        }
+    }
+
     private void searchTrigram(int key, int fold) {
         byte[] data = cantordust.getMainInterface().getData();
         int low = Math.max(0, dataMicroSlider.getValue());
@@ -827,6 +858,7 @@ public class ThreeTupleVisualizer extends Visualizer {
                 : String.format("%02X %02X %02X", (key >> 16) & 0xff, (key >> 8) & 0xff, key & 0xff);
         if (first < 0) {
             status = hex + "   no match in range";
+            publishStatus();
         } else {
             boolean went = false;
             try {
@@ -836,6 +868,7 @@ public class ThreeTupleVisualizer extends Visualizer {
             }
             status = String.format("%s   %d occurrence%s   first @ 0x%X%s",
                     hex, count, count == 1 ? "" : "s", first, went ? "" : "   (not mapped)");
+            publishStatus();
         }
         repaint();
     }
@@ -857,17 +890,52 @@ public class ThreeTupleVisualizer extends Visualizer {
         JMenu colorMenu = new JMenu("Color");
         ButtonGroup colors = new ButtonGroup();
         addColorItem(colorMenu, colors, "Trigram", COLOR_TRIGRAM);
+        addColorItem(colorMenu, colors, "Trigram (literal)", COLOR_TRIGRAM_LITERAL);
         addColorItem(colorMenu, colors, "Green", COLOR_GREEN);
         addColorItem(colorMenu, colors, "Heat", COLOR_HEAT);
+        addColorItem(colorMenu, colors, "Ice", COLOR_ICE);
+        addColorItem(colorMenu, colors, "Mono", COLOR_MONO);
         popup.add(colorMenu);
+
+        JMenu sizeMenu = new JMenu("Point size");
+        ButtonGroup sizes = new ButtonGroup();
+        for(int i = 1; i <= 4; i++){
+            addPointSizeItem(sizeMenu, sizes, i);
+        }
+        popup.add(sizeMenu);
+
+        JCheckBoxMenuItem cube = new JCheckBoxMenuItem("Reference cube", showCube);
+        cube.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                showCube = ((JCheckBoxMenuItem) e.getSource()).isSelected();
+                repaint();
+            }
+        });
+        popup.add(cube);
+
+        JCheckBoxMenuItem depth = new JCheckBoxMenuItem("Scale points by depth", depthScale);
+        depth.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                depthScale = ((JCheckBoxMenuItem) e.getSource()).isSelected();
+                requestRender();
+            }
+        });
+        popup.add(depth);
+
+        JCheckBoxMenuItem spin = new JCheckBoxMenuItem("Spin", false);
+        spin.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                setSpinning(((JCheckBoxMenuItem) e.getSource()).isSelected());
+            }
+        });
+        popup.add(spin);
 
         popup.addSeparator();
 
         JMenuItem brighter = new JMenuItem("Brighter");
         brighter.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                exposure = Math.min(64f, exposure * 1.8f);
-                requestRender();
+                adjustExposure(1.8f);
             }
         });
         popup.add(brighter);
@@ -875,8 +943,7 @@ public class ThreeTupleVisualizer extends Visualizer {
         JMenuItem dimmer = new JMenuItem("Dimmer");
         dimmer.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                exposure = Math.max(0.05f, exposure / 1.8f);
-                requestRender();
+                adjustExposure(1f / 1.8f);
             }
         });
         popup.add(dimmer);
@@ -884,17 +951,115 @@ public class ThreeTupleVisualizer extends Visualizer {
         JMenuItem reset = new JMenuItem("Reset view");
         reset.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                yaw = 0.6f;
-                pitch = -0.35f;
-                dist = 3.4f;
-                exposure = 1.0f;
-                status = "";
-                requestRender();
+                resetView();
             }
         });
         popup.add(reset);
 
         add(popup);
+    }
+
+    private void adjustExposure(float factor) {
+        exposure = Math.max(0.05f, Math.min(64f, exposure * factor));
+        requestRender();
+    }
+
+    private void resetView() {
+        yaw = 0.6f;
+        pitch = -0.35f;
+        dist = 3.4f;
+        exposure = 1.0f;
+        status = "";
+        requestRender();
+    }
+
+    /**
+     * Slow turntable rotation. Driven by a Swing timer so the camera is only
+     * ever written from the event thread, as the mouse handlers do.
+     */
+    private void setSpinning(boolean on) {
+        if(spinTimer != null){
+            spinTimer.stop();
+            spinTimer = null;
+        }
+        if(on){
+            spinTimer = new javax.swing.Timer(33, new ActionListener() {
+                public void actionPerformed(ActionEvent e) {
+                    if(!isShowing()){
+                        // Nothing is looking at it; stop burning frames.
+                        setSpinning(false);
+                        return;
+                    }
+                    yaw += 0.006f;
+                    moving = true;
+                    requestRender();
+                }
+            });
+            spinTimer.start();
+        } else {
+            moving = false;
+            requestRender();
+        }
+    }
+
+    /**
+     * Keyboard shortcuts for the controls worth reaching for repeatedly. Bound
+     * WHEN_FOCUSED and paired with a click-to-focus, so they never swallow keys
+     * meant for the rest of the Ghidra tool.
+     */
+    private void addKeyBindings() {
+        setFocusable(true);
+        InputMap in = getInputMap(WHEN_FOCUSED);
+        ActionMap act = getActionMap();
+
+        bind(in, act, "brighter", new KeyStroke[]{
+                KeyStroke.getKeyStroke('+'), KeyStroke.getKeyStroke('=')}, new AbstractAction() {
+            public void actionPerformed(ActionEvent e) { adjustExposure(1.4f); }
+        });
+        bind(in, act, "dimmer", new KeyStroke[]{
+                KeyStroke.getKeyStroke('-'), KeyStroke.getKeyStroke('_')}, new AbstractAction() {
+            public void actionPerformed(ActionEvent e) { adjustExposure(1f / 1.4f); }
+        });
+        bind(in, act, "bigger", new KeyStroke[]{KeyStroke.getKeyStroke(']')}, new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                pointSize = Math.min(4, pointSize + 1);
+                pointSizeAuto = false;
+                requestRender();
+            }
+        });
+        bind(in, act, "smaller", new KeyStroke[]{KeyStroke.getKeyStroke('[')}, new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                pointSize = Math.max(1, pointSize - 1);
+                pointSizeAuto = false;
+                requestRender();
+            }
+        });
+        bind(in, act, "reset", new KeyStroke[]{KeyStroke.getKeyStroke('r')}, new AbstractAction() {
+            public void actionPerformed(ActionEvent e) { resetView(); }
+        });
+        bind(in, act, "spin", new KeyStroke[]{KeyStroke.getKeyStroke(' ')}, new AbstractAction() {
+            public void actionPerformed(ActionEvent e) { setSpinning(spinTimer == null); }
+        });
+    }
+
+    private static void bind(InputMap in, ActionMap act, String name, KeyStroke[] keys, Action a) {
+        for(KeyStroke k : keys){
+            in.put(k, name);
+        }
+        act.put(name, a);
+    }
+
+    private void addPointSizeItem(JMenu menu, ButtonGroup group, final int value) {
+        JRadioButtonMenuItem item = new JRadioButtonMenuItem(value + " px", pointSize == value);
+        item.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                pointSize = value;
+                pointSizeAuto = false;
+                requestRender();
+            }
+        });
+        group.add(item);
+        menu.add(item);
     }
 
     private void addShapeItem(JMenu menu, ButtonGroup group, String label, final int value) {
