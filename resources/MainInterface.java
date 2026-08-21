@@ -42,10 +42,13 @@ public class MainInterface extends JPanel {
     public JButton byteCloudButton;
     public JButton metricMapButton;
     public JButton oneTupleButton;
+    public JButton threeTupleButton;
     public JPopupMenu popup;
 
     public GhidraSrc cantordust;
     public JLabel dataRange = new JLabel();
+    public JLabel macroCaption = new JLabel();
+    public JLabel microCaption = new JLabel();
     public JLabel macroValueHigh = new JLabel();
     public JLabel macroValueLow = new JLabel();
     public JLabel microValueHigh = new JLabel();
@@ -64,11 +67,14 @@ public class MainInterface extends JPanel {
         BYTECLOUD,
         METRIC,
         TWOTUPLE,
-        ONETUPLE
+        ONETUPLE,
+        THREETUPLE
     }
 
     public String basePath;
     public int xOffset = 0;
+    /** Set while one slider is updating the other, to stop the two listeners re-entering. */
+    private boolean syncingSliders = false;
     protected byte theme;
     protected Boolean dispMetricMap;
 
@@ -248,55 +254,76 @@ public class MainInterface extends JPanel {
         gbc.gridy = 4;
         add(oneTupleButton, gbc);
         
-        themeButton = new JButton("Theme");
-        themeButton.setToolTipText("Toggle light and dark theme");
-        themeButton.addActionListener(new change_theme());
+        Image threeTupleIcon = ImageIO.read(new File(basePath + "resources/icons/icon_3_tuple.bmp")).getScaledInstance(41, 41, Image.SCALE_SMOOTH);
+        threeTupleButton = new JButton(new ImageIcon(threeTupleIcon));
+        threeTupleButton.addActionListener(new open_three_tuple());
+        threeTupleButton.setPreferredSize(new Dimension(50, 50));
+        threeTupleButton.setToolTipText("Three Tuple  (" + detachHint() + " for a new window)");
         gbc.gridy = 5;
+        add(threeTupleButton, gbc);
+
+        themeButton = new JButton();
+        themeButton.addActionListener(new change_theme());
+        gbc.gridy = 6;
         add(themeButton, gbc);
 
-        long minGhidraAddress = cantordust.getMinAddressOffset();
-        long maxAddress = minGhidraAddress + macroSlider.getUpperValue(); 
-        long minAddress = minGhidraAddress + macroSlider.getValue() - 1;
-        
-        macroValueHigh.setText(Long.toHexString(maxAddress).toUpperCase());
-        macroValueHigh.setHorizontalAlignment(SwingConstants.LEFT);
+        // Slider captions. macroValueLow/High, widthValue and offsetValue were
+        // being kept up to date on every slider move but never added to the
+        // layout, so half the readouts were invisible.
+        macroCaption = new JLabel("Overview  (whole file)");
+        microCaption = new JLabel("Selection  (drawn range)");
+        macroCaption.setHorizontalAlignment(SwingConstants.CENTER);
+        microCaption.setHorizontalAlignment(SwingConstants.CENTER);
 
-        macroValueLow.setText(Long.toHexString(minAddress).toUpperCase());
-        macroValueLow.setHorizontalAlignment(SwingConstants.LEFT);
+        macroSlider.setToolTipText("Overview: choose which part of the file the selection slider covers");
+        microSlider.setToolTipText("Selection: choose the bytes drawn in the visualization");
+        widthSlider.setToolTipText("Width of the rendered image, in pixels");
+        offsetSlider.setToolTipText("Shift the data by a number of bytes before rendering");
+        if(dataSlider != null){
+            dataSlider.setToolTipText("Scroll the 1MB working window through a file too large to hold at once");
+        }
 
-        maxAddress = minGhidraAddress + microSlider.getUpperValue();
-        minAddress = minGhidraAddress + microSlider.getValue() - 1;
-        
-        programName.setText(cantordust.name);
-        gbc.gridx = xOffset + 0;
+        for(JLabel l : new JLabel[]{macroValueLow, macroValueHigh, microValueLow, microValueHigh}){
+            l.setHorizontalAlignment(SwingConstants.CENTER);
+        }
+        updateMacroLabels();
+        updateMicroLabels();
+
+        gbc.gridheight = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.CENTER;
+
         gbc.gridy = 513;
-        //add(programName, gbc);
-
-        microValueLow.setText(Long.toHexString(minAddress).toUpperCase());
-        microValueLow.setHorizontalAlignment(SwingConstants.LEFT);
-        gbc.gridx = xOffset + 5;
-        gbc.gridwidth = 5;
-        gbc.fill = GridBagConstraints.NONE;
-        gbc.anchor = GridBagConstraints.EAST;
-        add(microValueLow, gbc);
-
-        dataRange.setText("-");
+        gbc.gridx = xOffset + 0;
+        gbc.gridwidth = 10;
+        add(macroCaption, gbc);
         gbc.gridx = xOffset + 10;
-        gbc.gridwidth = 1;
-        add(dataRange, gbc);
+        add(microCaption, gbc);
 
-        microValueHigh.setText(Long.toHexString(maxAddress).toUpperCase());
-        microValueHigh.setHorizontalAlignment(SwingConstants.LEFT);
-        gbc.gridx = xOffset + 11;
+        gbc.gridy = 514;
         gbc.gridwidth = 5;
+        gbc.gridx = xOffset + 0;
+        add(macroValueLow, gbc);
+        gbc.gridx = xOffset + 5;
+        add(macroValueHigh, gbc);
+        gbc.gridx = xOffset + 10;
+        add(microValueLow, gbc);
+        gbc.gridx = xOffset + 15;
         add(microValueHigh, gbc);
 
+        // Width and offset readouts, under the row of controls they belong to.
+        widthValue.setText("Width " + hex(widthSlider.getValue()));
+        offsetValue.setText("Offset " + hex(offsetSlider.getValue()));
+        widthValue.setHorizontalAlignment(SwingConstants.CENTER);
+        offsetValue.setHorizontalAlignment(SwingConstants.CENTER);
+        gbc.gridy = 513;
+        gbc.gridwidth = 239;
+        gbc.gridx = xOffset + 21;
+        add(widthValue, gbc);
+        gbc.gridx = xOffset + 270;
+        add(offsetValue, gbc);
 
-        widthValue.setText(Integer.toHexString(widthSlider.getValue()).toUpperCase());
-        widthValue.setHorizontalAlignment(SwingConstants.LEFT);
-
-        offsetValue.setText(Integer.toHexString(offsetSlider.getValue()).toUpperCase());
-        offsetValue.setHorizontalAlignment(SwingConstants.LEFT);
+        gbc.fill = GridBagConstraints.NONE;
          
         // Add listener to update display.
         if(dataSlider != null){
@@ -322,85 +349,50 @@ public class MainInterface extends JPanel {
         }
         macroSlider.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent e) {
-                BitMapSlider slider = (BitMapSlider) e.getSource();
-                long minGhidraAddress1 = cantordust.getMinAddressOffset();
-                long maxAddress1 = minGhidraAddress1 + slider.getUpperValue();
-                long minAddress1 = minGhidraAddress1 + slider.getValue() - 1;
-
-                // Update text for upper and lower value
-                macroValueHigh.setText(Long.toHexString(maxAddress1).toUpperCase());
-                macroValueLow.setText(Long.toHexString(minAddress1).toUpperCase());
-
-                int max = microSlider.getMaximum();
-                int min = microSlider.getMinimum();
-                int high = microSlider.getUpperValue();
-                int low = microSlider.getValue();
-                double highRatio = (double)(high-min)/(double)(max-min);
-                double lowRatio = (double)(low-min)/(double)(max-min);
-
-                // Update the upper and lower value of microSlider
-                microSlider.setMinimum(slider.getValue());
-                microSlider.setMaximum(slider.getUpperValue());
-                int nMax = microSlider.getMaximum();
-                int nMin = microSlider.getMinimum();
-                if(slider.getValue()-1 > microSlider.getValue()-1) {
-                    microSlider.setValue(slider.getValue());
+                if(syncingSliders){
+                    return;
                 }
-                if(slider.getUpperValue() < microSlider.getUpperValue()) {
-                    microSlider.setUpperValue(slider.getUpperValue());
-                }
-                microSlider.setUpperValue( (int)(highRatio * (nMax-nMin)) + nMin);
-                microSlider.setValue( (int)(lowRatio * (nMax-nMin)) + nMin);
+                int lo = macroSlider.getValue();
+                int hi = macroSlider.getUpperValue();
+                updateMacroLabels();
 
-                // Update text for upper and lower value of microSlider
-                if(dataSlider != null){
-                    maxAddress1 = minGhidraAddress1 + dataSlider.getValue() + microSlider.getUpperValue();
-                    minAddress1 = minGhidraAddress1 + dataSlider.getValue() + microSlider.getValue() - 1;
-                    microValueHigh.setText(Long.toHexString(maxAddress1).toUpperCase());
-                    microValueLow.setText(Long.toHexString(minAddress1).toUpperCase());
-                } else {
-                    maxAddress1 = minGhidraAddress1 + microSlider.getUpperValue();
-                    minAddress1 = minGhidraAddress1 + microSlider.getValue() - 1 + slider.getValue();
-                    microValueHigh.setText(Long.toHexString(maxAddress1).toUpperCase());
-                    microValueLow.setText(Long.toHexString(minAddress1).toUpperCase());
-                }
+                // Keep the micro selection over the same bytes, clamped into the
+                // new window. The previous code rescaled it proportionally, so
+                // resizing the macro window slid the selection to a different
+                // part of the file; it also clamped first and then overwrote
+                // that with the rescale, making the clamp dead code.
+                int microLo = Math.min(Math.max(microSlider.getValue(), lo), hi);
+                int microHi = Math.min(Math.max(microSlider.getUpperValue(), microLo), hi);
 
-                if(slider.getValueIsAdjusting()) {
+                // One atomic model update: setting minimum, maximum, value and
+                // extent separately fired four events, each re-entering these
+                // listeners, and the order decided whether a value got clamped.
+                syncingSliders = true;
+                try {
+                    microSlider.getModel().setRangeProperties(microLo, microHi - microLo,
+                            lo, hi, microSlider.getValueIsAdjusting());
+                } finally {
+                    syncingSliders = false;
+                }
+                updateMicroLabels();
+
+                if(macroSlider.getValueIsAdjusting()) {
                     repaint();
+                } else {
+                    // Redraw the micro slider's strip for the window now selected.
+                    microSlider.ui.makeBitmapAsync(lo, hi);
                 }
             }
         });
         microSlider.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent e) {
-                BitMapSlider slider = (BitMapSlider) e.getSource();
-                long minGhidraAddress1 = cantordust.getMinAddressOffset();
-                long maxAddress1 = minGhidraAddress1 + slider.getUpperValue();
-                long minAddress1 = minGhidraAddress1 + slider.getValue();
-
-                // Make sure the slider stays within its bounds
-                if(macroSlider.getValue()-1 > slider.getValue()-1) {
-                    slider.setMinimum(macroSlider.getValue());
-                    slider.setValue(macroSlider.getValue());
+                if(syncingSliders){
+                    return;
                 }
-                if(macroSlider.getUpperValue() < slider.getUpperValue()) {
-                    slider.setMaximum(macroSlider.getUpperValue());
-                    slider.setUpperValue(macroSlider.getUpperValue());
-                }
-
-                // Update text for the slider
-                if(dataSlider != null){
-                    // cantordust.cdprint("max"+slider.getMaximum()+"\n");
-                    // cantordust.cdprint("min"+slider.getMinimum()+"\n");
-                    maxAddress1 = maxAddress1 + dataSlider.getValue();
-                    minAddress1 = minAddress1 + dataSlider.getValue();
-                    microValueHigh.setText(Long.toHexString(maxAddress1).toUpperCase());
-                    microValueLow.setText(Long.toHexString(minAddress1).toUpperCase());
-                } else {
-                    microValueHigh.setText(Long.toHexString(maxAddress1).toUpperCase());
-                    microValueLow.setText(Long.toHexString(minAddress1).toUpperCase());
-                }
-
-                if(macroSlider.getValueIsAdjusting()) {
+                // The model already confines this slider to the macro window, so
+                // re-clamping here only fought the macro listener.
+                updateMicroLabels();
+                if(microSlider.getValueIsAdjusting()) {
                     repaint();
                 }
             }
@@ -408,13 +400,13 @@ public class MainInterface extends JPanel {
         widthSlider.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent e) {
                 JSlider slider = (JSlider) e.getSource();
-                widthValue.setText(Integer.toHexString(slider.getValue()).toUpperCase());
+                widthValue.setText("Width " + hex(slider.getValue()));
             }
         });
         offsetSlider.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent e) {
                 JSlider slider = (JSlider) e.getSource();
-                offsetValue.setText(Integer.toHexString(slider.getValue()).toUpperCase());
+                offsetValue.setText("Offset " + hex(slider.getValue()));
             }
         });
 
@@ -446,6 +438,10 @@ public class MainInterface extends JPanel {
     private void darkTheme() {
         this.theme = 1;
         setTheme(Color.black, Color.white, Color.darkGray);
+        // The button advertises what a click will do, so in the dark theme it
+        // offers the sun.
+        themeButton.setIcon(new ThemeIcon(true, 16));
+        themeButton.setToolTipText("Switch to the light theme");
     }
 
     /**
@@ -456,6 +452,8 @@ public class MainInterface extends JPanel {
         Color c = UIManager.getColor("panelButtons.background");
         Color textColor = Color.black;
         setTheme(c, textColor, c);
+        themeButton.setIcon(new ThemeIcon(false, 16));
+        themeButton.setToolTipText("Switch to the dark theme");
     }
 
     /**
@@ -493,6 +491,8 @@ public class MainInterface extends JPanel {
         this.offsetUpButton.setForeground(textColor);
 
         this.dataRange.setForeground(textColor);
+        this.macroCaption.setForeground(textColor);
+        this.microCaption.setForeground(textColor);
         this.programName.setForeground(textColor);
 
         this.microUpButton.setBackground(c);
@@ -504,6 +504,26 @@ public class MainInterface extends JPanel {
         if(dispMetricMap) {
             currVis.setBackground(c);
         }
+    }
+
+    /** Format an offset the way Ghidra shows addresses, with an 0x prefix. */
+    private static String hex(long v) {
+        return "0x" + Long.toHexString(v).toUpperCase();
+    }
+
+    private void updateMacroLabels() {
+        long base = cantordust.getMinAddressOffset();
+        macroValueLow.setText(hex(base + macroSlider.getValue()));
+        macroValueHigh.setText(hex(base + macroSlider.getUpperValue()));
+    }
+
+    private void updateMicroLabels() {
+        long base = cantordust.getMinAddressOffset();
+        if(dataSlider != null){
+            base += dataSlider.getValue();
+        }
+        microValueLow.setText(hex(base + microSlider.getValue()));
+        microValueHigh.setText(hex(base + microSlider.getUpperValue()));
     }
 
     /**
@@ -592,6 +612,26 @@ public class MainInterface extends JPanel {
                 frame1.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
             } else if (!(currVis instanceof TwoTupleVisualizer)) {
                 showInMainWindow(visualizerMapKeys.TWOTUPLE, () -> new TwoTupleVisualizer(TwoTupleVisualizer.getWindowSize(), cantordust));
+            }
+        }
+    }
+
+    private class open_three_tuple implements ActionListener {
+        open_three_tuple() {
+
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            if (opensInNewWindow(e)) {
+                JFrame frame1 = new JFrame("3 Tuple Visualization");
+                ThreeTupleVisualizer threeTupleVis = new ThreeTupleVisualizer(ThreeTupleVisualizer.getWindowSize(), cantordust);
+                frame1.getContentPane().add(threeTupleVis);
+                frame1.setSize(ThreeTupleVisualizer.getWindowSize(), ThreeTupleVisualizer.getWindowSize());
+                frame1.setVisible(true);
+                frame1.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+            } else if (!(currVis instanceof ThreeTupleVisualizer)) {
+                showInMainWindow(visualizerMapKeys.THREETUPLE, () -> new ThreeTupleVisualizer(ThreeTupleVisualizer.getWindowSize(), cantordust));
             }
         }
     }

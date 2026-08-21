@@ -78,8 +78,11 @@ class BitMapSliderUI extends RangeSliderUI {
      */
     public void makeBitmapAsync(int low, int high) {
         new Thread(() -> {
-            while(((BitMapSlider) this.slider).data == null) {
-            	// Wait for the data field to be populated if it isn't
+            // This used to spin on a null check, burning a core until the field
+            // was set. The data is assigned in the constructor, so it is enough
+            // to skip the redraw on the one case where it is genuinely absent.
+            if(((BitMapSlider) this.slider).data == null) {
+                return;
             }
             makeBitmap(low, high);
         }).start();
@@ -241,11 +244,9 @@ class BitMapSliderUI extends RangeSliderUI {
             upperDragging = false;
             slider.setValueIsAdjusting(false);
             slider.setCursor(new Cursor(Cursor.HAND_CURSOR));
-            if(((BitMapSlider) slider) == ((BitMapSlider) slider).cd.getMainInterface().macroSlider) {
-                int low = ((BitMapSlider) slider).getValue()-1;
-                int high = ((BitMapSlider) slider).getUpperValue();
-                ((BitMapSliderUI) ((BitMapSlider) slider).cd.getMainInterface().microSlider.getUI()).makeBitmapAsync(low, high);
-            }
+            // The micro slider's strip is redrawn from the macro slider's change
+            // listener, which also covers changes made with the arrow buttons or
+            // by the data slider, not just those made with the mouse.
 
             super.mouseReleased(e);
         }
