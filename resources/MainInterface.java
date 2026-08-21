@@ -212,7 +212,6 @@ public class MainInterface extends JPanel {
         twoTupleButton = new JButton(new ImageIcon(twoTupleIcon));
         twoTupleButton.addActionListener(new open_two_tuple());
         twoTupleButton.setPreferredSize(new Dimension(50, 50));
-        twoTupleButton.setBackground(Color.darkGray);
         twoTupleButton.setToolTipText("Two Tuple  (" + detachHint() + " for a new window)");
         gbc.gridx = xOffset + 532;
         gbc.gridheight = 1;
@@ -223,7 +222,6 @@ public class MainInterface extends JPanel {
         eightBitPerPixelBitMapButton = new JButton(new ImageIcon(bmpIcon));
         eightBitPerPixelBitMapButton.addActionListener(new open_8bpp_BitMap());
         eightBitPerPixelBitMapButton.setPreferredSize(new Dimension(50, 50));
-        eightBitPerPixelBitMapButton.setBackground(Color.darkGray);
         eightBitPerPixelBitMapButton.setToolTipText("Linear BitMap  (" + detachHint() + " for a new window)");
         gbc.gridy = 1;
         add(eightBitPerPixelBitMapButton, gbc);
@@ -232,7 +230,6 @@ public class MainInterface extends JPanel {
         byteCloudButton = new JButton(new ImageIcon(byteCloudIcon));
         byteCloudButton.addActionListener(new open_byte_cloud());
         byteCloudButton.setPreferredSize(new Dimension(50, 50));
-        byteCloudButton.setBackground(Color.darkGray);
         byteCloudButton.setToolTipText("Byte Cloud  (" + detachHint() + " for a new window)");
         gbc.gridy = 2;
         add(byteCloudButton, gbc);
@@ -241,7 +238,6 @@ public class MainInterface extends JPanel {
         metricMapButton = new JButton(new ImageIcon(metricMapIcon));
         metricMapButton.addActionListener(new open_metric_map());
         metricMapButton.setPreferredSize(new Dimension(50, 50));
-        metricMapButton.setBackground(Color.darkGray);
         metricMapButton.setToolTipText("Metric Map  (" + detachHint() + " for a new window)");
         gbc.gridy = 3;
         add(metricMapButton, gbc);
@@ -250,12 +246,12 @@ public class MainInterface extends JPanel {
         oneTupleButton = new JButton(new ImageIcon(oneTupleIcon));
         oneTupleButton.addActionListener(new open_one_tuple());
         oneTupleButton.setPreferredSize(new Dimension(50, 50));
-        oneTupleButton.setBackground(Color.darkGray);
         oneTupleButton.setToolTipText("One Tuple  (" + detachHint() + " for a new window)");
         gbc.gridy = 4;
         add(oneTupleButton, gbc);
         
-        themeButton = new JButton("th");
+        themeButton = new JButton("Theme");
+        themeButton.setToolTipText("Toggle light and dark theme");
         themeButton.addActionListener(new change_theme());
         gbc.gridy = 5;
         add(themeButton, gbc);

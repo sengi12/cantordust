@@ -83,7 +83,9 @@ public class ByteCloudVisualizer extends Visualizer {
 
         //Set font details
         g.setColor(Color.GREEN);
-        g.setFont(new Font("Courier New", Font.BOLD, 12));
+        // Logical font: "Courier New" is not present on every platform and would
+        // silently fall back to whatever the JDK picked.
+        g.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         
         for(i = 0; i < 16; i++){
