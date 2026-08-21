@@ -9,6 +9,8 @@ import java.awt.event.*;
 import java.util.HashMap;
 import java.awt.image.*;
 import java.awt.Color;
+import java.awt.Graphics;
+import java.awt.Rectangle;
 
 public class MetricMap extends Visualizer{
     protected byte[] data;
@@ -23,7 +25,10 @@ public class MetricMap extends Visualizer{
     protected String type_plot = "square";
     protected ColorSource csource;
     private JSlider dataWidthSlider;
-    private JLabel label;
+    /** The curve at its own resolution; scaled to the panel when painted. */
+    private BufferedImage mapImage;
+    /** Where mapImage was last drawn, so a click can be mapped back to a cell. */
+    private final Rectangle mapBounds = new Rectangle();
     private boolean isClassifier = false;
 
     public MetricMap(int windowSize, GhidraSrc cantordust) {
@@ -121,10 +126,8 @@ public class MetricMap extends Visualizer{
                     if(popupAddr != null) {
                         popupAddr.hide();
                     }
-                    if(e.getX() < size_hilbert && e.getY() < size_hilbert){
-                        if(e.getX() >= 0 && e.getY() >= 0){
-                            mousePressed(e);
-                        }
+                    if(toMapPoint(e.getX(), e.getY()) != null){
+                        mousePressed(e);
                     }
                 }
             }
@@ -153,7 +156,10 @@ public class MetricMap extends Visualizer{
                     // docked into the Ghidra tool.
                     int xf = (int)bv.getLocationOnScreen().getX()+x_point;
                     int yf = (int)bv.getLocationOnScreen().getY()+y_point;
-                    TwoIntegerTuple p = new TwoIntegerTuple(x_point, y_point);
+                    TwoIntegerTuple p = toMapPoint(x_point, y_point);
+                    if(p == null){
+                        return;
+                    }
                     int currentLow = dataMicroSlider.getValue();
                     int loc = map.index(p);
                     // The map is rebuilt on a background thread, so a click can land
@@ -189,6 +195,11 @@ public class MetricMap extends Visualizer{
                     try{
                         // Set current location in Ghidra to this address
                         cantordust.gotoFileAddress(memoryLocation);
+                        MainInterface mi = cantordust.getMainInterface();
+                        if(mi != null){
+                            mi.setStatus("offset @ 0x" + Long.toHexString(memoryLocation).toUpperCase()
+                                    + "   address " + currentAddress);
+                        }
                     } catch(IllegalArgumentException exception){
                     }
                 }
@@ -554,29 +565,65 @@ public class MetricMap extends Visualizer{
     public void plotMap(TwoIntegerTuple dimensions){
         int width = dimensions.get(0);
         int height = dimensions.get(1);
-        // int imageSize = width * height * 3;
-        // JPanel panel = new JPanel();
-        // getContentPane().removeAll();
-        // getContentPane().add(panel);
-        // panel.add( createImageLabel(this.pixelMap1D, width, height) );
-        // panel.revalidate();
-        // panel.repaint();
-        removeAll();
-        add( createImageLabel(this.pixelMap1D, width, height) );
-        revalidate();
+        // Keep the curve as an image and scale it when painting. It used to be
+        // wrapped in a JLabel added as a child, which pinned the map to its own
+        // resolution: in a docked window the panel simply cropped it. The
+        // removeAll() that came with it also threw away the popup menu.
+        mapImage = createMapImage(this.pixelMap1D, width, height);
         repaint();
     }
-    
-    private JLabel createImageLabel(int[] pixels, int width, int height)
+
+    private BufferedImage createMapImage(int[] pixels, int width, int height)
     {
-        // int change = size_hilbert - (int)((width - size_hilbert)/2);
-        // cantordust.cdprint("ch: "+change+"\n");
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        // cantordust.cdprint("w: "+width+"\nh: "+height+"\n");
         WritableRaster raster = image.getRaster();
         raster.setPixels(0, 0, width, height, pixels);
-        label = new JLabel( new ImageIcon(image) );
-        return label;
+        return image;
+    }
+
+    @Override
+    public void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        BufferedImage img = mapImage;
+        if(img == null) {
+            return;
+        }
+        int pw = getWidth();
+        int ph = getHeight();
+        if(pw <= 0 || ph <= 0) {
+            return;
+        }
+        // Fit, do not stretch. A locality preserving curve drawn to a non-square
+        // panel stops preserving locality in any way the eye can use.
+        double scale = Math.min(pw / (double) img.getWidth(), ph / (double) img.getHeight());
+        int w = Math.max(1, (int)(img.getWidth() * scale));
+        int h = Math.max(1, (int)(img.getHeight() * scale));
+        int x = (pw - w) / 2;
+        int y = (ph - h) / 2;
+        mapBounds.setBounds(x, y, w, h);
+        g.drawImage(img, x, y, w, h, null);
+    }
+
+    /**
+     * Panel coordinates to a cell of the curve, or null when the point is
+     * outside the drawn map. Everything that turns a click into an address goes
+     * through here, so the mapping stays correct at any panel size.
+     */
+    private TwoIntegerTuple toMapPoint(int px, int py) {
+        BufferedImage img = mapImage;
+        Rectangle b = mapBounds;
+        if(img == null || b.width <= 0 || b.height <= 0 || !b.contains(px, py)) {
+            return null;
+        }
+        int mx = (px - b.x) * img.getWidth() / b.width;
+        int my = (py - b.y) * img.getHeight() / b.height;
+        if(mx >= img.getWidth()) {
+            mx = img.getWidth() - 1;
+        }
+        if(my >= img.getHeight()) {
+            my = img.getHeight() - 1;
+        }
+        return new TwoIntegerTuple(mx, my);
     }
 
     public static int getWindowSize() {

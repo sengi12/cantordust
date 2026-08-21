@@ -3,6 +3,7 @@ package resources;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
+import java.awt.Insets;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.util.concurrent.TimeUnit;
@@ -49,7 +50,13 @@ class BitMapSliderUI extends RangeSliderUI {
      */
     @Override
     protected Dimension getThumbSize() {
-        return new Dimension(100, 10);
+        // Follow the slider's width rather than assuming the 100px it used to be
+        // given, so the thumbs still span the track once the panel is resizable.
+        // getThumbSize runs before the track rectangle is calculated, so measure
+        // the component instead of trackRect.
+        Insets insets = slider.getInsets();
+        int w = slider.getWidth() - insets.left - insets.right;
+        return new Dimension(Math.max(24, w), 10);
     }
  
     /**
@@ -65,11 +72,15 @@ class BitMapSliderUI extends RangeSliderUI {
      */
     @Override
     public void paintTrack(Graphics g) {
-        // Draw track.
         Rectangle trackBounds = trackRect;
 
         if (img != null) {
-            g.drawImage(img, 0, 5, trackBounds.width + 50, trackBounds.height, null);
+            // Draw into the track, not next to it. This used to ignore the
+            // track's own origin, start 5px down, and run 50px wider than the
+            // track, so the strip sat offset from the thumbs and spilled over
+            // the edge of the slider at every size but the original one.
+            g.drawImage(img, trackBounds.x, trackBounds.y,
+                    trackBounds.width, trackBounds.height, null);
         }
     }
 
