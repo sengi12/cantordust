@@ -15,7 +15,6 @@ import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 
 import javax.swing.JButton;
-import javax.swing.JFrame;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 import javax.swing.JSlider;
@@ -34,7 +33,7 @@ public class BitMapVisualizer extends Visualizer {
 
     private Image img;
 
-    public BitMapVisualizer(int windowSize, GhidraSrc cantordust, JFrame frame) {
+    public BitMapVisualizer(int windowSize, GhidraSrc cantordust) {
         super(windowSize, cantordust);
         MainInterface mainInterface = cantordust.getMainInterface();
         dataWidthSlider = mainInterface.widthSlider;
@@ -46,7 +45,7 @@ public class BitMapVisualizer extends Visualizer {
         dataMicroUpButton = mainInterface.microUpButton;
         mode = 0;
         this.img = new BufferedImage(1,1,1);
-        createPopupMenu(frame);
+        createPopupMenu();
 
         dataMacroSlider.addChangeListener(new ChangeListener() {
             public void stateChanged(ChangeEvent e) {
@@ -119,7 +118,7 @@ public class BitMapVisualizer extends Visualizer {
         }).start();
     }
     
-    public void createPopupMenu(JFrame frame){
+    public void createPopupMenu(){
         JPopupMenu popup = new JPopupMenu("test1");
         JMenuItem bpp_8 = new JMenuItem("8bpp");
         bpp_8.addActionListener(new ActionListener() {
@@ -169,7 +168,7 @@ public class BitMapVisualizer extends Visualizer {
         this.addMouseListener(new MouseAdapter() {  
             public void mouseReleased(MouseEvent e) {  
                 if(e.getButton() == 3){
-                    popup.show(frame, BitMapVisualizer.this.getX() + e.getX(), BitMapVisualizer.this.getY() + e.getY());
+                    popup.show(BitMapVisualizer.this, e.getX(), e.getY());
                 }
             }                 
         });  

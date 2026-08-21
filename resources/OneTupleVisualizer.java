@@ -12,14 +12,14 @@ public class OneTupleVisualizer extends Visualizer {
     private int groupLines = 16;
     private Color color = Color.GREEN;
 
-    public OneTupleVisualizer(int windowSize, GhidraSrc cantordust, JFrame frame) {
+    public OneTupleVisualizer(int windowSize, GhidraSrc cantordust) {
         super(windowSize, cantordust);
         blockHeight = blockWidth;
         cantordust.cdprint("about to execute createPopupMenu\n");
-        createPopupMenu(frame);
+        createPopupMenu();
     }
 
-    public void createPopupMenu(JFrame frame){
+    public void createPopupMenu(){
         JPopupMenu popup = new JPopupMenu("test1");
         // add color options
         HashMap<String, Color> colorButtons = new HashMap<String, Color>() {{
@@ -64,10 +64,10 @@ public class OneTupleVisualizer extends Visualizer {
         popup.add(colors);
         popup.add(lines);
         
-        frame.addMouseListener(new MouseAdapter() {  
+        this.addMouseListener(new MouseAdapter() {  
             public void mouseReleased(MouseEvent e) {  
                 if(e.getButton() == 3){
-                    popup.show(frame , e.getX(), e.getY());
+                    popup.show(OneTupleVisualizer.this, e.getX(), e.getY());
                 }
             }                 
         }); 

@@ -26,26 +26,26 @@ public class MetricMap extends Visualizer{
     private JLabel label;
     private boolean isClassifier = false;
 
-    public MetricMap(int windowSize, GhidraSrc cantordust, JFrame frame, Boolean isCurrentView) {
+    public MetricMap(int windowSize, GhidraSrc cantordust) {
         super(windowSize, cantordust);
         data = this.cantordust.getMainInterface().getData();
         dataWidthSlider = this.cantordust.getMainInterface().widthSlider;
-        createPopupMenu(frame);
+        createPopupMenu();
         sliderConfig();
-        mouseConfig(frame, isCurrentView);
+        mouseConfig();
         this.csource = new ColorEntropy(this.cantordust, getCurrentData());
         this.map = new Hilbert(this.cantordust, 2, (int)(Math.log(getWindowSize())/Math.log(2)));
         draw();
     }
     
     // Special constructor for initialization of plugin
-    public MetricMap(int windowSize, GhidraSrc cantordust, MainInterface mainInterface, JFrame frame, Boolean isCurrentView) {
+    public MetricMap(int windowSize, GhidraSrc cantordust, MainInterface mainInterface) {
         super(windowSize, cantordust, mainInterface);
         data = mainInterface.getData();
         dataWidthSlider = mainInterface.widthSlider;
-        createPopupMenu(frame);
+        createPopupMenu();
         sliderConfig();
-        mouseConfig(frame, isCurrentView);
+        mouseConfig();
         this.csource = new ColorEntropy(this.cantordust, getCurrentData());
         this.map = new Hilbert(this.cantordust, 2, (int)(Math.log(getWindowSize())/Math.log(2)));
         draw();
@@ -110,7 +110,7 @@ public class MetricMap extends Visualizer{
         });
     }
 
-    public void mouseConfig(JFrame frame, boolean isCurrentView){
+    public void mouseConfig(){
         addMouseMotionListener(new MouseAdapter() {
             @Override
             public void mouseDragged(MouseEvent e) {
@@ -143,15 +143,16 @@ public class MetricMap extends Visualizer{
                 int b2 = MouseEvent.BUTTON2_DOWN_MASK;
                 if ((e.getModifiersEx() & (b1 | b2)) == b1) {
                     JPanel bv = MetricMap.this;
-                    JFrame metricMap = frame;
+                    if(!bv.isShowing()){
+                        return;
+                    }
                     int x_point=e.getX();
                     int y_point=e.getY();
-                    int xf = metricMap.getX()+x_point;
-                    int yf = metricMap.getY()+y_point;
-                    if(isCurrentView){
-                        xf = (int)bv.getLocationOnScreen().getX()+x_point;
-                        yf = (int)bv.getLocationOnScreen().getY()+y_point-26;
-                    }
+                    // PopupFactory wants screen coordinates. Asking the panel where
+                    // it is on screen works whether this window is floating or
+                    // docked into the Ghidra tool.
+                    int xf = (int)bv.getLocationOnScreen().getX()+x_point;
+                    int yf = (int)bv.getLocationOnScreen().getY()+y_point;
                     TwoIntegerTuple p = new TwoIntegerTuple(x_point, y_point);
                     int currentLow = dataMicroSlider.getValue();
                     int loc = map.index(p);
@@ -182,7 +183,7 @@ public class MetricMap extends Visualizer{
                         p2.setBackground(Color.black);
                     }
                     p2.add(l);
-                    popupAddr = pf.getPopup(metricMap, p2, xf, yf);
+                    popupAddr = pf.getPopup(bv, p2, xf, yf);
                     popupAddr.show();
                     
                     try{
@@ -198,7 +199,7 @@ public class MetricMap extends Visualizer{
                     popupAddr.hide();
                 }
                 if(e.getButton() == 3){
-                    popupMenu.show(frame, MetricMap.this.getX() + e.getX(), MetricMap.this.getY() + e.getY());
+                    popupMenu.show(MetricMap.this, e.getX(), e.getY());
                 }
             }
         });
@@ -215,7 +216,7 @@ public class MetricMap extends Visualizer{
         return currentData;
     }
 
-    public void createPopupMenu(JFrame frame){
+    public void createPopupMenu(){
         popupMenu = new JPopupMenu("Menu");
         JMenuItem pause = new JMenuItem("Pause");
 

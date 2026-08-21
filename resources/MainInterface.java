@@ -67,17 +67,15 @@ public class MainInterface extends JPanel {
         ONETUPLE
     }
 
-    private JFrame frame;
     public String basePath;
     public int xOffset = 0;
     protected byte theme;
     protected Boolean dispMetricMap;
 
-    public MainInterface(byte[] mdata, GhidraSrc cd, JFrame frame) throws IOException {
+    public MainInterface(byte[] mdata, GhidraSrc cd) throws IOException {
         this.data = mdata;
         this.fullData = mdata;
         this.cantordust = cd;
-        this.frame = frame;
         visualizerPanels = new HashMap<>();
 
         this.dispMetricMap = false;
@@ -195,7 +193,7 @@ public class MainInterface extends JPanel {
         add(offsetUpButton, gbc);
         
         // Default Current Visualization: MetricMap
-        currVis = new MetricMap(MetricMap.getWindowSize(), cantordust, this, frame, true);
+        currVis = new MetricMap(MetricMap.getWindowSize(), cantordust, this);
         currVis.setPreferredSize(new Dimension(512, 512));
         gbc.gridx = xOffset + 20;
         gbc.gridy = 0;
@@ -442,10 +440,6 @@ public class MainInterface extends JPanel {
         return this.data;
     }
 
-    public JFrame getFrame() {
-        return this.frame;
-    }
-
     /**
      * Sets the current theme to dark
      */
@@ -568,14 +562,14 @@ public class MainInterface extends JPanel {
             if (opensInNewWindow(e)) {
                 //JOptionPane.showMessageDialog(null, "test", "InfoBox: " + "test", JOptionPane.INFORMATION_MESSAGE);
                 JFrame frame1 = new JFrame("1 Tuple Visualization");
-                OneTupleVisualizer oneTupleVis = new OneTupleVisualizer(OneTupleVisualizer.getWindowSize(), cantordust, frame1);
+                OneTupleVisualizer oneTupleVis = new OneTupleVisualizer(OneTupleVisualizer.getWindowSize(), cantordust);
                 frame1.getContentPane().add(oneTupleVis);
                 frame1.setSize(OneTupleVisualizer.getWindowSize(), OneTupleVisualizer.getWindowSize());
                 //frame.pack();
                 frame1.setVisible(true);
                 frame1.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
             } else if (!(currVis instanceof OneTupleVisualizer)) {
-                showInMainWindow(visualizerMapKeys.ONETUPLE, () -> new OneTupleVisualizer(OneTupleVisualizer.getWindowSize(), cantordust, frame));
+                showInMainWindow(visualizerMapKeys.ONETUPLE, () -> new OneTupleVisualizer(OneTupleVisualizer.getWindowSize(), cantordust));
             }
         }
     }
@@ -590,14 +584,14 @@ public class MainInterface extends JPanel {
             if (opensInNewWindow(e)) {
                 //JOptionPane.showMessageDialog(null, "test", "InfoBox: " + "test", JOptionPane.INFORMATION_MESSAGE);
                 JFrame frame1 = new JFrame("2 Tuple Visualization");
-                TwoTupleVisualizer twoTupleVis = new TwoTupleVisualizer(TwoTupleVisualizer.getWindowSize(), cantordust, frame1);
+                TwoTupleVisualizer twoTupleVis = new TwoTupleVisualizer(TwoTupleVisualizer.getWindowSize(), cantordust);
                 frame1.getContentPane().add(twoTupleVis);
                 frame1.setSize(TwoTupleVisualizer.getWindowSize(), TwoTupleVisualizer.getWindowSize());
                 //frame.pack();
                 frame1.setVisible(true);
                 frame1.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
             } else if (!(currVis instanceof TwoTupleVisualizer)) {
-                showInMainWindow(visualizerMapKeys.TWOTUPLE, () -> new TwoTupleVisualizer(TwoTupleVisualizer.getWindowSize(), cantordust, frame));
+                showInMainWindow(visualizerMapKeys.TWOTUPLE, () -> new TwoTupleVisualizer(TwoTupleVisualizer.getWindowSize(), cantordust));
             }
         }
     }
@@ -611,14 +605,14 @@ public class MainInterface extends JPanel {
         public void actionPerformed(ActionEvent e) {
             if (opensInNewWindow(e)) {
                 JFrame frame1 = new JFrame("Linear Bit Map");
-                BitMapVisualizer bitMapVis = new BitMapVisualizer(BitMapVisualizer.getWindowSize(), cantordust, frame1);
+                BitMapVisualizer bitMapVis = new BitMapVisualizer(BitMapVisualizer.getWindowSize(), cantordust);
                 frame1.getContentPane().add(bitMapVis);
                 bitMapVis.setColorMapper(new EightBitPerPixelMapper(cantordust));
                 frame1.setSize(BitMapVisualizer.getWindowSize(), BitMapVisualizer.getWindowSize());
                 frame1.setVisible(true);
                 frame1.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
             } else if (!(currVis instanceof BitMapVisualizer)) {
-                showInMainWindow(visualizerMapKeys.BITMAP, () -> new BitMapVisualizer(BitMapVisualizer.getWindowSize(), cantordust, frame));
+                showInMainWindow(visualizerMapKeys.BITMAP, () -> new BitMapVisualizer(BitMapVisualizer.getWindowSize(), cantordust));
             }
         }
     }
@@ -652,13 +646,13 @@ public class MainInterface extends JPanel {
         public void actionPerformed(ActionEvent e) {
             if (opensInNewWindow(e)) {
                 JFrame frame1 = new JFrame("Metric Map");
-                MetricMap metricMap = new MetricMap(MetricMap.getWindowSize(), cantordust, frame1, false);
+                MetricMap metricMap = new MetricMap(MetricMap.getWindowSize(), cantordust);
                 frame1.getContentPane().add(metricMap);
                 frame1.setSize(MetricMap.getWindowSize(), MetricMap.getWindowSize()+30);
                 frame1.setVisible(true);
                 frame1.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
             } else if (!(currVis instanceof MetricMap)) {
-                showInMainWindow(visualizerMapKeys.METRIC, () -> new MetricMap(MetricMap.getWindowSize(), cantordust, frame, true));
+                showInMainWindow(visualizerMapKeys.METRIC, () -> new MetricMap(MetricMap.getWindowSize(), cantordust));
             }
         }
     }

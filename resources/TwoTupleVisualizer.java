@@ -26,23 +26,23 @@ public class TwoTupleVisualizer extends Visualizer {
     private Boolean gradientMode = true;
     private int cycles = 0;
 
-    public TwoTupleVisualizer(int windowSize, GhidraSrc cantordust, JFrame frame) {
+    public TwoTupleVisualizer(int windowSize, GhidraSrc cantordust) {
         super(windowSize, cantordust);
         this.img = null;
         initializeCaches();
         constructImageAsync();
         addChangeListeners();
-        createPopupMenu(frame);
+        createPopupMenu();
     }
 
     // Special constructor for initialization of plugin
-    public TwoTupleVisualizer(int windowSize, GhidraSrc cantordust, MainInterface mainInterface, JFrame frame) {
+    public TwoTupleVisualizer(int windowSize, GhidraSrc cantordust, MainInterface mainInterface) {
         super(windowSize, cantordust, mainInterface);
         this.img = null;
         initializeCaches();
         constructImageAsync();
         addChangeListeners();
-        createPopupMenu(frame);
+        createPopupMenu();
     }
 
     public void paintComponent(Graphics g) {
@@ -218,7 +218,7 @@ public class TwoTupleVisualizer extends Visualizer {
         }
     }
 
-    public void createPopupMenu(JFrame frame){
+    public void createPopupMenu(){
         JPopupMenu popup = new JPopupMenu("colors");
         JMenuItem redItem = new JMenuItem("red");
         redItem.addActionListener(new ActionListener() {
@@ -260,7 +260,7 @@ public class TwoTupleVisualizer extends Visualizer {
         this.addMouseListener(new MouseAdapter() {
             public void mouseReleased(MouseEvent e) {
                 if(e.getButton() == 3){
-                    popup.show(frame, TwoTupleVisualizer.this.getX() + e.getX(), TwoTupleVisualizer.this.getY() + e.getY());
+                    popup.show(TwoTupleVisualizer.this, e.getX(), e.getY());
                 }
             }
         });

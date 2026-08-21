@@ -14,7 +14,6 @@ import ghidra.program.model.mem.MemoryBlockSourceInfo;
 import ghidra.program.model.mem.MemoryAccessException;
 import ghidra.program.database.mem.FileBytes;
 
-import javax.swing.JFrame;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,15 +24,10 @@ public class GhidraSrc extends GhidraScript{
     public MainInterface mainInterface;
     public String currentDirectory;
     public String name;
-    public JFrame frame;
     private boolean DEBUG = false;
 
     public ClassifierModel classifier;
     public boolean classifierInitialized = false;
-
-    public GhidraSrc(){
-        this.frame = new JFrame();
-    }
 
     protected void run() throws Exception {
     }
