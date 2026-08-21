@@ -10,8 +10,15 @@ import java.nio.file.Files;
  */
 public class ClassifierModel {
 
+    /**
+     * One entry per file in resources/templates. The originals came from the C#
+     * tool; arm64, riscv64, s390x, ppc64el and mips64el were added later from
+     * Debian binaries, and cover architectures the original set had no class for
+     * at all - the closest it had to 64-bit ARM was 32-bit arm7.
+     */
     public final static String[] classes = {"arm4", "arm7", "ascii_english", "compressed", "java", "mips", "msil", "ones", "png",
-                                "powerpc", "sparc_32", "utf_16_english", "x64", "x86", "x86_padding", "zeros", "embedded_image"};
+                                "powerpc", "sparc_32", "utf_16_english", "x64", "x86", "x86_padding", "zeros", "embedded_image",
+                                "arm64", "riscv64", "s390x", "ppc64el", "mips64el"};
     public static int DEFAULT_GRAMS = 4;
     /** Resolution of the shading: every BLOCK_SIZE bytes gets its own label. */
     public static int BLOCK_SIZE = 12;
