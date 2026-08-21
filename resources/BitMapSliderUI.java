@@ -6,6 +6,7 @@ import java.awt.Graphics;
 import java.awt.Insets;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 import java.awt.Cursor;
 import java.awt.Rectangle;
@@ -20,7 +21,14 @@ import javax.swing.JSlider;
  * one for the lower value and one for the upper value.
  */
 class BitMapSliderUI extends RangeSliderUI {
+
+    /** Narrowest window the entropy estimate is allowed to be measured over. */
+    private static final int MIN_ENTROPY_WINDOW = 64;
+    private static final double LOG2 = Math.log(2);
+
     private BufferedImage img;
+    private int lastLow;
+    private int lastHigh;
 
     public BitMapSliderUI(BitMapSlider b) {
         super(b);
@@ -99,6 +107,18 @@ class BitMapSliderUI extends RangeSliderUI {
         }).start();
     }
 
+    /** Redraw the strip over the range it is already showing. */
+    public void refresh() {
+        int low, high;
+        synchronized (this) {
+            low = lastLow;
+            high = lastHigh;
+        }
+        if (high > low) {
+            makeBitmapAsync(low, high);
+        }
+    }
+
     /**
      * Code that actually makes the bitmap
      */
@@ -113,24 +133,95 @@ class BitMapSliderUI extends RangeSliderUI {
         if (low < 0) {
             low = 0;
         }
+        if (high <= low) {
+            return;
+        }
+        synchronized (this) {
+            lastLow = low;
+            lastHigh = high;
+        }
 
-        // Calculate width and height
+        BufferedImage next = (((BitMapSlider) this.slider).getStripMode() == BitMapSlider.MODE_ENTROPY)
+                ? entropyStrip(data, low, high)
+                : valueStrip(data, low, high);
+        if (next != null) {
+            img = next;
+            this.slider.repaint();
+        }
+    }
+
+    /** Each pixel is one byte, drawn as its value. */
+    private BufferedImage valueStrip(byte[] data, int low, int high) {
         int width = 400;
         int height = (high-low)/width-1 > 0? (high-low)/width-1 : 1;
 
-        // Create a new image
-        img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        int count = low;
-
-        // Populate the image
-        for(int y=0; y < img.getHeight(); y++) {
-            for(int x=0; x < img.getWidth(); x++) {
-                count = count+1 < data.length-1? count+1 : data.length-1;
-                img.setRGB(x, y, (new Color(0, data[count] & 0xff, 0)).getRGB());
+        BufferedImage out = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        for(int y=0; y < height; y++) {
+            for(int x=0; x < width; x++) {
+                int idx = low + y * width + x;
+                if (idx >= data.length) {
+                    idx = data.length - 1;
+                }
+                out.setRGB(x, y, (new Color(0, data[idx] & 0xff, 0)).getRGB());
             }
         }
+        return out;
+    }
 
-        this.slider.repaint();
+    /**
+     * Shannon entropy of each successive window of the range, as a single
+     * column that the track stretches to its width.
+     *
+     * The value strip shows what the bytes are; this shows how disordered they
+     * are, which is what actually distinguishes compressed and encrypted regions
+     * from code, text and padding. Reading that off the navigation control means
+     * the interesting part of a file can be found before picking a visualization.
+     *
+     * Entropy is counted with a flat 256-entry histogram rather than through
+     * Utils.entropy, which allocates a HashMap of boxed Bytes per call - fine for
+     * one point, far too slow for a thousand windows of a large file.
+     */
+    private BufferedImage entropyStrip(byte[] data, int low, int high) {
+        int span = high - low;
+        if (span <= 0) {
+            return null;
+        }
+        // One value per output row, capped so the cost does not grow with the
+        // file, and floored at a window wide enough for the estimate to mean
+        // something.
+        int rows = Math.min(1024, Math.max(1, span / MIN_ENTROPY_WINDOW));
+        int window = Math.max(1, span / rows);
+
+        BufferedImage out = new BufferedImage(1, rows, BufferedImage.TYPE_INT_RGB);
+        int[] hist = new int[256];
+        for (int r = 0; r < rows; r++) {
+            int start = low + r * window;
+            int end = Math.min(high, start + window);
+            if (start >= end) {
+                break;
+            }
+            Arrays.fill(hist, 0);
+            for (int i = start; i < end; i++) {
+                hist[data[i] & 0xff]++;
+            }
+            int n = end - start;
+            double bits = 0;
+            for (int c : hist) {
+                if (c > 0) {
+                    double pr = c / (double) n;
+                    bits -= pr * (Math.log(pr) / LOG2);
+                }
+            }
+            // Eight bits is the ceiling for byte symbols: uniformly random data.
+            int v = (int) (255.0 * bits / 8.0);
+            if (v < 0) {
+                v = 0;
+            } else if (v > 255) {
+                v = 255;
+            }
+            out.setRGB(0, r, DensityShader.shade(DensityShader.HEAT, v, 0));
+        }
+        return out;
     }
 
     /**
