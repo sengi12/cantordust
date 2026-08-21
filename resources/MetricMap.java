@@ -30,6 +30,8 @@ public class MetricMap extends Visualizer{
     /** Where mapImage was last drawn, so a click can be mapped back to a cell. */
     private final Rectangle mapBounds = new Rectangle();
     private boolean isClassifier = false;
+    private final java.util.concurrent.atomic.AtomicBoolean classifierBuilding =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
 
     public MetricMap(int windowSize, GhidraSrc cantordust) {
         super(windowSize, cantordust);
@@ -177,8 +179,12 @@ public class MetricMap extends Visualizer{
                     String currentAddress = Long.toHexString(minGhidraAddress+(long)memoryLocation).toUpperCase();
                     JLabel l;
                     if(isClassifier) {
+                        // The classifier may not have been built, and blocks past
+                        // the end of the program have no label; both used to be an
+                        // exception out of the click handler.
                         ClassifierModel classifier = cantordust.getClassifier();
-                        l = new JLabel(ClassifierModel.classes[classifier.classAtIndex(memoryLocation)]);
+                        l = new JLabel(classifier == null ? "classifier not generated"
+                                : ClassifierModel.nameOf(classifier.classAtIndex(memoryLocation)));
                     } else {
                         l = new JLabel(currentAddress);
                     }
@@ -393,8 +399,11 @@ public class MetricMap extends Visualizer{
                     isClassifier = true;
                     csource = new ColorClassifierPrediction(cantordust, getCurrentData());
                     draw();
-                    cantordust.cdprint("clicked classifier prediction\n");
-                } else { cantordust.cdprint("clicked classifier prediction\nAlready set\n"); }
+                }
+                // Selecting this shading is the request. Building the classifier
+                // first was a separate menu item that had to be found and clicked,
+                // and picking the shading without it threw.
+                ensureClassifier();
             }
         });
         
@@ -416,15 +425,8 @@ public class MetricMap extends Visualizer{
 
         JMenuItem classGen = new JMenuItem("Generate Classifier");
         classGen.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {    
-                // draw();
-                cantordust.cdprint("clicked Generate Classifier\n");
-                //isClassifier = true;
-                cantordust.initiateClassifier();
-                popupMenu.remove(close);
-                //popupMenu.add(stopClassifier);
-                popupMenu.add(close);
-                cantordust.cdprint("generated classifier\n");
+            public void actionPerformed(ActionEvent e) {
+                ensureClassifier();
             }
         });
 
@@ -571,6 +573,61 @@ public class MetricMap extends Visualizer{
         // removeAll() that came with it also threw away the popup menu.
         mapImage = createMapImage(this.pixelMap1D, width, height);
         repaint();
+    }
+
+    /**
+     * Builds the classifier if it is not already there, on a worker thread with
+     * progress on the status line, then redraws.
+     *
+     * This used to run on the event thread from the menu action, which froze the
+     * whole Ghidra window for as long as it took - and it took tens of seconds
+     * before the models were made compact.
+     */
+    private void ensureClassifier() {
+        if(cantordust.isClassifierReady()) {
+            draw();
+            return;
+        }
+        if(!classifierBuilding.compareAndSet(false, true)) {
+            return;
+        }
+        Thread t = new Thread(() -> {
+            MainInterface mi = cantordust.getMainInterface();
+            Thread reporter = new Thread(() -> {
+                try {
+                    while(classifierBuilding.get()) {
+                        ClassifierModel m = cantordust.getClassifier();
+                        if(mi != null && m != null && !m.getStage().isEmpty()) {
+                            mi.setStatus(String.format("Building classifier: %s (%.0f%%)",
+                                    m.getStage(), m.getProgress() * 100));
+                        } else if(mi != null) {
+                            mi.setStatus("Building classifier\u2026");
+                        }
+                        Thread.sleep(250);
+                    }
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+            }, "cantordust-classifier-progress");
+            reporter.setDaemon(true);
+            reporter.start();
+            try {
+                cantordust.initiateClassifier();
+                if(mi != null) {
+                    mi.setStatus("Classifier ready");
+                }
+            } catch (RuntimeException ex) {
+                cantordust.cdprint("classifier failed: " + ex + "\n");
+                if(mi != null) {
+                    mi.setStatus("Classifier failed: " + ex.getMessage());
+                }
+            } finally {
+                classifierBuilding.set(false);
+            }
+            draw();
+        }, "cantordust-classifier");
+        t.setDaemon(true);
+        t.start();
     }
 
     private BufferedImage createMapImage(int[] pixels, int width, int height)
