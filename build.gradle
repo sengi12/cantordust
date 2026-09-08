@@ -1,0 +1,79 @@
+// Builds the standalone Cantordust application.
+//
+// This does not change how the Ghidra script works: Ghidra still compiles
+// Cantordust.java and resources/ straight from this directory. The build exists
+// so the same sources can also be a jar that runs on its own, with a hex view in
+// place of the listing.
+//
+//     gradle jar          -> build/libs/cantordust.jar   (java -jar build/libs/cantordust.jar [file])
+//     gradle jpackage     -> build/jpackage/             (native app with a bundled runtime)
+//
+// The three Ghidra-only classes are left out, so the jar has no Ghidra
+// dependency and needs no Ghidra install to build or run.
+
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'org.battelle'
+version = '2.0.0'
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(17) }
+}
+
+application {
+    mainClass = 'resources.CantordustApp'
+    applicationName = 'cantordust'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['.']
+            include 'resources/**/*.java'
+            // Ghidra-only: the script entry point, the script base class, and
+            // the docking provider.
+            exclude 'resources/GhidraSrc.java'
+            exclude 'resources/CantordustProvider.java'
+        }
+        resources {
+            srcDirs = ['.']
+            // Bundled at the same relative paths the script reads from disk, so
+            // Host.openResource("resources/icons/x.png") works in both modes.
+            include 'resources/icons/**'
+            include 'resources/templates/**'
+        }
+    }
+}
+
+jar {
+    archiveBaseName = 'cantordust'
+    archiveVersion = ''
+    manifest {
+        attributes 'Main-Class': application.mainClass,
+                   'Implementation-Title': 'Cantordust',
+                   'Implementation-Version': project.version
+    }
+}
+
+// Native bundles with a bundled JRE, so standalone users need no Java install.
+// Requires JDK 14+ for the jpackage tool.
+tasks.register('jpackage', Exec) {
+    dependsOn jar
+    group = 'distribution'
+    description = 'Package the standalone app as a native installer with a bundled runtime.'
+    def out = layout.buildDirectory.dir('jpackage').get().asFile
+    doFirst { out.mkdirs() }
+    commandLine 'jpackage',
+        '--input', layout.buildDirectory.dir('libs').get().asFile.path,
+        '--main-jar', 'cantordust.jar',
+        '--main-class', application.mainClass.get(),
+        '--name', 'Cantordust',
+        '--app-version', project.version,
+        '--dest', out.path
+    // No --icon: jpackage wants a platform-native icon (.icns on macOS, .ico
+    // on Windows) and rejects the project's .png. The default icon is used
+    // until per-platform ones exist.
+}

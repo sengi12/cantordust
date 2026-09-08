@@ -67,7 +67,7 @@ public class Cantordust extends GhidraSrc {
         this.mainInterface.setPreferredSize(new Dimension(
                 resources.MainInterface.getWindowWidth(),
                 resources.MainInterface.getWindowHeight()));
-        this.provider = new CantordustProvider(tool, mainInterface, name, currentDirectory);
+        this.provider = new CantordustProvider(tool, mainInterface, name, this);
         tool.addComponentProvider(provider, true);
     }
 
