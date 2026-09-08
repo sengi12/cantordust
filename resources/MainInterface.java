@@ -545,7 +545,7 @@ public class MainInterface extends JPanel {
         try (java.io.InputStream in = cantordust.openResource("resources/icons/" + iconFile)) {
             icon = ImageIO.read(in).getScaledInstance(41, 41, Image.SCALE_SMOOTH);
         }
-        JButton b = new JButton(new ImageIcon(icon));
+        JButton b = new JButton(new RoundedIcon(icon, 41, 41));
         b.addActionListener(action);
         b.setPreferredSize(new Dimension(52, 52));
         // Lets the column compress in a short window rather than being clipped.
