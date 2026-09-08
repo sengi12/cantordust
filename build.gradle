@@ -77,8 +77,15 @@ tasks.register('jpackage', Exec) {
         '--main-class', application.mainClass.get(),
         '--name', 'Cantordust',
         '--app-version', project.version,
-        '--dest', out.path
-    // No --icon: jpackage wants a platform-native icon (.icns on macOS, .ico
-    // on Windows) and rejects the project's .png. The default icon is used
-    // until per-platform ones exist.
+        '--dest', out.path,
+        '--icon', platformIcon()
+}
+
+// jpackage wants a platform-native icon and rejects anything else: .icns on
+// macOS, .ico on Windows, .png on Linux. All three are the same Ghidra icon.
+def platformIcon() {
+    def os = System.getProperty('os.name').toLowerCase()
+    if (os.contains('mac'))   return 'resources/icons/icon.icns'
+    if (os.contains('win'))   return 'resources/icons/icon.ico'
+    return 'resources/icons/icon.png'
 }

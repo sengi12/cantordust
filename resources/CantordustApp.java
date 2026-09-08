@@ -88,6 +88,7 @@ public final class CantordustApp {
         JFrame frame = new JFrame("Cantordust - " + file.getName());
         frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         frame.setJMenuBar(menuBar(frame));
+        applyIcon(frame, host);
 
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, mi, hex.inScrollPane());
         split.setResizeWeight(1.0);
@@ -100,6 +101,30 @@ public final class CantordustApp {
         frame.setLocationByPlatform(true);
         frame.setVisible(true);
         return frame;
+    }
+
+    /**
+     * The same icon the Ghidra script uses, on the window and - where the
+     * platform has one - the dock or taskbar. When run from a jpackage bundle
+     * the bundle's own icon already covers the dock, so a failure here is only
+     * cosmetic and is not worth surfacing.
+     */
+    private static void applyIcon(JFrame frame, Host host) {
+        try (java.io.InputStream in = host.openResource("resources/icons/icon.png")) {
+            java.awt.Image icon = javax.imageio.ImageIO.read(in);
+            if (icon == null) {
+                return;
+            }
+            frame.setIconImage(icon);
+            if (java.awt.Taskbar.isTaskbarSupported()) {
+                java.awt.Taskbar tb = java.awt.Taskbar.getTaskbar();
+                if (tb.isSupported(java.awt.Taskbar.Feature.ICON_IMAGE)) {
+                    tb.setIconImage(icon);
+                }
+            }
+        } catch (IOException | RuntimeException e) {
+            // cosmetic
+        }
     }
 
     private static JMenuBar menuBar(JFrame frame) {
