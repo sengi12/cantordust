@@ -78,7 +78,8 @@ tasks.register('jpackage', Exec) {
         '--name', 'Cantordust',
         '--app-version', project.version,
         '--dest', out.path,
-        '--icon', platformIcon()
+        '--icon', platformIcon(),
+        '--mac-package-identifier', 'org.battelle.cantordust'
 }
 
 // jpackage wants a platform-native icon and rejects anything else: .icns on

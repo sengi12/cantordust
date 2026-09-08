@@ -33,6 +33,7 @@ public final class CantordustApp {
     }
 
     public static void main(String[] args) {
+        EdtWatchdog.start();
         File initial = (args.length > 0) ? new File(args[0]) : null;
         SwingUtilities.invokeLater(() -> {
             File f = initial;
@@ -100,6 +101,12 @@ public final class CantordustApp {
         frame.pack();
         frame.setLocationByPlatform(true);
         frame.setVisible(true);
+        if (Boolean.getBoolean("cantordust.debug")) {
+            // Lets a test drive the running app from outside without a screen
+            // reader: where the File menu is, on screen.
+            java.awt.Point p = frame.getJMenuBar().getMenu(0).getLocationOnScreen();
+            System.out.println("cantordust.debug: file-menu at " + p.x + "," + p.y);
+        }
         return frame;
     }
 
