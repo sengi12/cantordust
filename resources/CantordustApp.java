@@ -2,6 +2,7 @@ package resources;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.awt.IllegalComponentStateException;
 import java.awt.event.KeyEvent;
 import java.io.File;
 import java.io.IOException;
@@ -34,6 +35,7 @@ public final class CantordustApp {
 
     public static void main(String[] args) {
         EdtWatchdog.start();
+        nativeLookAndFeel();
         File initial = (args.length > 0) ? new File(args[0]) : null;
         SwingUtilities.invokeLater(() -> {
             File f = initial;
@@ -45,6 +47,24 @@ public final class CantordustApp {
             }
             open(f);
         });
+    }
+
+    /**
+     * Look native on each platform. Without this, Windows and Linux get Swing's
+     * cross-platform Metal look; macOS already defaults to Aqua. On macOS the
+     * menu bar also moves to the top of the screen where the platform keeps it.
+     * Any failure here is cosmetic, so it is not allowed to stop the launch.
+     */
+    private static void nativeLookAndFeel() {
+        try {
+            if (System.getProperty("os.name", "").toLowerCase().contains("mac")) {
+                System.setProperty("apple.laf.useScreenMenuBar", "true");
+                System.setProperty("apple.awt.application.name", "Cantordust");
+            }
+            javax.swing.UIManager.setLookAndFeel(javax.swing.UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception e) {
+            // cosmetic
+        }
     }
 
     private static File chooseFile(JFrame parent) {
@@ -104,8 +124,12 @@ public final class CantordustApp {
         if (Boolean.getBoolean("cantordust.debug")) {
             // Lets a test drive the running app from outside without a screen
             // reader: where the File menu is, on screen.
-            java.awt.Point p = frame.getJMenuBar().getMenu(0).getLocationOnScreen();
-            System.out.println("cantordust.debug: file-menu at " + p.x + "," + p.y);
+            try {
+                java.awt.Point p = frame.getJMenuBar().getMenu(0).getLocationOnScreen();
+                System.out.println("cantordust.debug: file-menu at " + p.x + "," + p.y);
+            } catch (IllegalComponentStateException e) {
+                System.out.println("cantordust.debug: file-menu is on the screen menu bar");
+            }
         }
         return frame;
     }
