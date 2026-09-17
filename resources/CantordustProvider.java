@@ -6,7 +6,6 @@ import ghidra.framework.plugintool.PluginTool;
 
 import javax.swing.ImageIcon;
 import javax.swing.JComponent;
-import java.io.File;
 
 /**
  * Hosts Cantordust inside the Ghidra tool.
@@ -24,7 +23,7 @@ public class CantordustProvider extends ComponentProvider {
     private final PluginTool tool;
 
     public CantordustProvider(PluginTool tool, MainInterface mainInterface,
-                              String programName, String basePath) {
+                              String programName, Host host) {
         super(tool, NAME, NAME);
         this.tool = tool;
         this.mainInterface = mainInterface;
@@ -41,17 +40,16 @@ public class CantordustProvider extends ComponentProvider {
         setTransient();
 
         setWindowMenuGroup(NAME);
-        loadIcon(basePath);
+        loadIcon(host);
     }
 
-    private void loadIcon(String basePath) {
-        try {
-            File icon = new File(basePath + "resources" + File.separator
-                    + "icons" + File.separator + "icon.png");
-            if (icon.isFile()) {
-                setIcon(new ImageIcon(icon.getAbsolutePath()));
+    private void loadIcon(Host host) {
+        try (java.io.InputStream in = host.openResource("resources/icons/icon.png")) {
+            java.awt.Image img = javax.imageio.ImageIO.read(in);
+            if (img != null) {
+                setIcon(new ImageIcon(img));
             }
-        } catch (RuntimeException e) {
+        } catch (java.io.IOException | RuntimeException e) {
             // A missing or unreadable icon is not worth failing the window over.
         }
     }
